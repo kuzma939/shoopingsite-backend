@@ -1,18 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const prisma = require('../prisma');
+const prisma = require('../prisma'); // 🔥 Імпорт Prisma клієнта
 
 router.post('/', async (req, res) => {
   const rawProducts = req.body;
 
   try {
     for (const rawProduct of rawProducts) {
-      const product = {
-        ...rawProduct,
-        images: rawProduct.images?.filter(item => typeof item === 'string') || [],
-        sizes: rawProduct.sizes || [],
+      // 🔹 Фільтруємо лише рядкові зображення (без відео-об'єктів)
+      const cleanedImages = rawProduct.images?.filter(item => typeof item === 'string') || [];
 
+      // 🔹 Створюємо продукт з полями, які очікує база
+      const product = {
+        id: rawProduct.id,
+        price: rawProduct.price,
+        isTop: rawProduct.isTop,
+        sku: rawProduct.sku,
+        size: rawProduct.size,
+        category: rawProduct.category,
+        image: rawProduct.image,
+        images: cleanedImages,          // ✅ images як JSON-масив рядків
+        sizes: rawProduct.sizes || [],  // ✅ sizes як масив рядків
       };
+
+      console.log('📦 Сейдимо продукт:', product);
 
       await prisma.product.upsert({
         where: { id: product.id },
@@ -24,7 +35,7 @@ router.post('/', async (req, res) => {
           category: product.category,
           image: product.image,
           images: product.images,
-          sizes: product.sizes, // ✅ масив рядків, як очікує Prisma
+          sizes: product.sizes,
         },
         create: {
           id: product.id,
@@ -35,7 +46,7 @@ router.post('/', async (req, res) => {
           category: product.category,
           image: product.image,
           images: product.images,
-          sizes: product.sizes, // ✅ масив рядків, не об'єкти
+          sizes: product.sizes,
         },
       });
     }
