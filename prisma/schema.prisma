@@ -15,8 +15,7 @@ model Product {
   size         String
   category     String
   image        String
-  images       Json
-  sizes        String[]
+ 
   
 
   cartItems    CartItem[]  // 🔗 Зв’язок з корзиною

@@ -7,9 +7,7 @@ router.post('/', async (req, res) => {
 
   try {
     for (const rawProduct of rawProducts) {
-      // 🔹 Фільтруємо лише рядкові зображення (без відео-об'єктів)
-      const cleanedImages = rawProduct.images?.filter(item => typeof item === 'string') || [];
-
+    
       // 🔹 Створюємо продукт з полями, які очікує база
       const product = {
         id: rawProduct.id,
@@ -19,8 +17,7 @@ router.post('/', async (req, res) => {
         size: rawProduct.size,
         category: rawProduct.category,
         image: rawProduct.image,
-        images: cleanedImages,          // ✅ images як JSON-масив рядків
-        sizes: rawProduct.sizes || [],  // ✅ sizes як масив рядків
+        // ✅ sizes як масив рядків
       };
 
       console.log('📦 Сейдимо продукт:', product);
@@ -34,8 +31,7 @@ router.post('/', async (req, res) => {
           size: product.size,
           category: product.category,
           image: product.image,
-          images: product.images,
-          sizes: product.sizes,
+       
         },
         create: {
           id: product.id,
@@ -45,8 +41,7 @@ router.post('/', async (req, res) => {
           size: product.size,
           category: product.category,
           image: product.image,
-          images: product.images,
-          sizes: product.sizes,
+        
         },
       });
     }
