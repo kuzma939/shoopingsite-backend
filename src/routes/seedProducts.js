@@ -23,7 +23,8 @@ router.post('/', async (req, res) => {
               }))
             : [],
         };
-  
+        console.log('🚛 Спроба зберегти продукт:', JSON.stringify(product, null, 2));
+
         await prisma.product.upsert({
           where: { id: product.id },
           update: {
