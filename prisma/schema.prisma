@@ -7,18 +7,22 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-model Product {
-  id           Int        @id @default(autoincrement())
-  price        Int
-  isTop        Boolean
-  sku          String
-  size         String
-  category     String
-  image        String
- 
-  
 
-  cartItems    CartItem[]  // 🔗 Зв’язок з корзиною
+model Product {
+  id        Int      @id @default(autoincrement())
+  price     Int
+  isTop     Boolean
+  sku       String
+  size      String
+  category  String
+  image     String
+
+  // 🔹 Потрібні для роботи з images і sizes з фронту:
+  images    Json
+  sizes     String[]
+
+  // 🔗 Зв’язок з корзиною
+  cartItems CartItem[]
 }
 
 model CartItem {
