@@ -1,20 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const prisma = require('../prisma'); // 🔥 Імпортуємо готовий екземпляр
+const prisma = require('../prisma');
 
 router.post('/', async (req, res) => {
   const rawProducts = req.body;
 
   try {
     for (const rawProduct of rawProducts) {
-      // 🔁 Трансформуємо product без translations
       const product = {
         ...rawProduct,
-        images: rawProduct.images?.filter(img => typeof img === 'string').map(url => ({ url })) || [],
+        images: rawProduct.images
+          ?.filter(img => typeof img === 'string')
+          .map(url => ({ url })) || [],
         sizes: rawProduct.sizes?.map(value => ({ value })) || [],
+        // 🔻 translations більше не потрібні
       };
-
-      console.log('🚛 Спроба зберегти продукт:', JSON.stringify(product, null, 2));
 
       await prisma.product.upsert({
         where: { id: product.id },
@@ -34,9 +34,9 @@ router.post('/', async (req, res) => {
           size: product.size,
           category: product.category,
           image: product.image,
-
           images: { create: product.images },
           sizes: { create: product.sizes },
+          // 🔻 translations видалено
         },
       });
     }
