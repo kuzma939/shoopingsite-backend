@@ -10,11 +10,8 @@ router.post('/', async (req, res) => {
       const product = {
         ...rawProduct,
         images: rawProduct.images?.filter(item => typeof item === 'string') || [],
-        sizes: Array.isArray(rawProduct.sizes)
-          ? rawProduct.sizes
-          : typeof rawProduct.sizes === 'string'
-          ? rawProduct.sizes.split(' ')
-          : [],
+        sizes: rawProduct.sizes || [],
+
       };
 
       await prisma.product.upsert({
