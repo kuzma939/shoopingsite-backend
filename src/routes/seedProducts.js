@@ -16,9 +16,7 @@ router.post('/', async (req, res) => {
           size: product.size,
           category: product.category,
           image: product.image,
-          images: product.images,
-          sizes: product.sizes,
-          translations: product.translations,
+          // ❌ вкладені поля краще не оновлювати напряму — можна додати окрему логіку
         },
         create: {
           id: product.id,
@@ -28,16 +26,33 @@ router.post('/', async (req, res) => {
           size: product.size,
           category: product.category,
           image: product.image,
-          images: product.images,
-          sizes: product.sizes,
-          translations: product.translations,
+
+          images: {
+            create: product.images?.map(img => ({
+              url: img.url,
+            })) || [],
+          },
+          sizes: {
+            create: product.sizes?.map(size => ({
+              value: size.value,
+            })) || [],
+          },
+          translations: {
+            create: product.translations?.map(t => ({
+              locale: t.locale,
+              name: t.name,
+              description: t.description,
+              category: t.category,
+              colors: t.colors,
+            })) || [],
+          },
         },
       });
     }
 
     res.status(200).json({ message: 'Products successfully seeded!' });
   } catch (error) {
-    console.error('Seeding error:', error);
+    console.error('❌ Seeding error:', error);
     res.status(500).json({ error: 'Failed to seed products' });
   }
 });
