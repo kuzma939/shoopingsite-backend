@@ -9,8 +9,12 @@ router.post('/', async (req, res) => {
     for (const rawProduct of rawProducts) {
       const product = {
         ...rawProduct,
-        images: rawProduct.images?.filter(img => typeof img === 'string') || [],
-        sizes: rawProduct.sizes || [],
+        images: rawProduct.images?.filter(item => typeof item === 'string') || [],
+        sizes: Array.isArray(rawProduct.sizes)
+          ? rawProduct.sizes
+          : typeof rawProduct.sizes === 'string'
+          ? rawProduct.sizes.split(' ')
+          : [],
       };
 
       await prisma.product.upsert({
@@ -22,8 +26,8 @@ router.post('/', async (req, res) => {
           size: product.size,
           category: product.category,
           image: product.image,
-          images: product.images, // ✅ масив рядків
-          sizes: product.sizes,   // ✅ масив рядків
+          images: product.images,
+          sizes: product.sizes, // ✅ масив рядків, як очікує Prisma
         },
         create: {
           id: product.id,
@@ -33,8 +37,8 @@ router.post('/', async (req, res) => {
           size: product.size,
           category: product.category,
           image: product.image,
-          images: product.images, // ✅
-          sizes: product.sizes,   // ✅
+          images: product.images,
+          sizes: product.sizes, // ✅ масив рядків, не об'єкти
         },
       });
     }
