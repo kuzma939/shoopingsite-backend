@@ -1,14 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const prisma = require('../prisma'); // 🔥 Імпорт Prisma клієнта
+const prisma = require('../prisma');
 
 router.post('/', async (req, res) => {
   const rawProducts = req.body;
 
   try {
     for (const rawProduct of rawProducts) {
-    
-      // 🔹 Створюємо продукт з полями, які очікує база
+      // 🧼 Очистка images (тільки рядки, без відео-об’єктів)
+      const cleanedImages = Array.isArray(rawProduct.images)
+        ? rawProduct.images.filter(item => typeof item === 'string')
+        : [];
+
+      // 🧼 Очистка sizes (має бути масив рядків)
+      const cleanedSizes = Array.isArray(rawProduct.sizes)
+        ? rawProduct.sizes.filter(s => typeof s === 'string')
+        : [];
+
       const product = {
         id: rawProduct.id,
         price: rawProduct.price,
@@ -17,32 +25,14 @@ router.post('/', async (req, res) => {
         size: rawProduct.size,
         category: rawProduct.category,
         image: rawProduct.image,
-        // ✅ sizes як масив рядків
+        images: cleanedImages,
+        sizes: cleanedSizes,
       };
-
-      console.log('📦 Сейдимо продукт:', product);
 
       await prisma.product.upsert({
         where: { id: product.id },
-        update: {
-          price: product.price,
-          isTop: product.isTop,
-          sku: product.sku,
-          size: product.size,
-          category: product.category,
-          image: product.image,
-       
-        },
-        create: {
-          id: product.id,
-          price: product.price,
-          isTop: product.isTop,
-          sku: product.sku,
-          size: product.size,
-          category: product.category,
-          image: product.image,
-        
-        },
+        update: product,
+        create: product,
       });
     }
 
