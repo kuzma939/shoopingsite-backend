@@ -7,9 +7,8 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
 model Product {
-  id           Int      @id @default(autoincrement())
+  id           Int        @id @default(autoincrement())
   price        Int
   isTop        Boolean
   sku          String
@@ -19,19 +18,17 @@ model Product {
   images       Json
   sizes        String[]
   translations Json
+
+  cartItems    CartItem[]  // 🔗 Зв’язок з корзиною
 }
 
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+model CartItem {
+  id        String   @id @default(cuid())
+  sessionId String
+  productId Int
+  color     String
+  size      String
+  quantity  Int
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
