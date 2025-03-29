@@ -27,6 +27,9 @@ app.use('/api/cart', cartRoutes);
 const seedProducts = require('./routes/seedProducts');
 app.use('/api/seed-products', seedProducts);
 
+const migrate = require('./routes/migrate');
+app.use('/apply-migrations', migrate);
+
 // 🔍 Маршрут для перегляду всіх продуктів
 app.get('/api/products', async (req, res) => {
   try {
