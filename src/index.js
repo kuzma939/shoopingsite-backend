@@ -35,6 +35,9 @@ app.use('/api/cart', cartRoutes);
 const seedProducts = require('./routes/seedProducts');
 app.use('/api/seed-products', seedProducts);
 
+const seedTrigger = require('./routes/seedTrigger');
+app.use('/api/trigger-seed', seedTrigger);
+
 // ✅ Продукти (GET all)
 app.get('/api/products', async (req, res) => {
   try {
