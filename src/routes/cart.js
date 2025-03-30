@@ -2,15 +2,36 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../prisma'); 
 
-// === GET: Отримати корзину ===
+// === GET: Отримати корзину з даними продукту ===
 router.get('/', async (req, res) => {
   const { sessionId } = req.query;
   if (!sessionId) return res.status(400).json({ message: 'Не вказано sessionId' });
 
-  const cart = await prisma.cartItem.findMany({ where: { sessionId } });
-  res.json({ cart });
+  try {
+    const cartItems = await prisma.cartItem.findMany({
+      where: { sessionId },
+      include: { product: true },
+    });
+
+    const formatted = cartItems.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      quantity: item.quantity,
+      color: item.color,
+      size: item.size,
+      price: item.product.price,
+      image: item.product.image,
+      name: item.product.translations?.UA?.name || item.product.sku,
+    }));
+
+    res.json({ cart: formatted });
+  } catch (error) {
+    console.error('❌ Помилка при отриманні корзини:', error);
+    res.status(500).json({ message: 'Помилка сервера' });
+  }
 });
 
+// === POST: Додати товар ===
 // === POST: Додати товар ===
 router.post('/', async (req, res) => {
   const { sessionId, productId, color, size, quantity = 1 } = req.body;
@@ -18,6 +39,13 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'Вкажіть всі поля' });
   }
 
+  // 🛡️ Перевірка чи існує такий продукт
+  const product = await prisma.product.findUnique({ where: { id: productId } });
+  if (!product) {
+    return res.status(404).json({ message: 'Продукт не знайдено' });
+  }
+
+  // 🔄 Перевірка чи вже існує цей товар в корзині
   const existing = await prisma.cartItem.findFirst({
     where: { sessionId, productId, color, size },
   });
