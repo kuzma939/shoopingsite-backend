@@ -31,37 +31,45 @@ router.get('/', async (req, res) => {
   }
 });
 
-// === POST: Додати товар ===
+
 // === POST: Додати товар ===
 router.post('/', async (req, res) => {
-  const { sessionId, productId, color, size, quantity = 1 } = req.body;
-  if (!sessionId || !productId || !color || !size) {
-    return res.status(400).json({ message: 'Вкажіть всі поля' });
-  }
+  let { sessionId, productId, color, size, quantity = 1 } = req.body;
 
-  // 🛡️ Перевірка чи існує такий продукт
-  const product = await prisma.product.findUnique({ where: { id: productId } });
-  if (!product) {
-    return res.status(404).json({ message: 'Продукт не знайдено' });
-  }
+  try {
+    productId = parseInt(productId);
+    quantity = parseInt(quantity) || 1;
 
-  // 🔄 Перевірка чи вже існує цей товар в корзині
-  const existing = await prisma.cartItem.findFirst({
-    where: { sessionId, productId, color, size },
-  });
+    if (!sessionId || !productId || !color || !size) {
+      return res.status(400).json({ message: 'Вкажіть всі поля' });
+    }
 
-  if (existing) {
-    await prisma.cartItem.update({
-      where: { id: existing.id },
-      data: { quantity: existing.quantity + quantity },
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      return res.status(404).json({ message: 'Продукт не знайдено' });
+    }
+
+    const existing = await prisma.cartItem.findFirst({
+      where: { sessionId, productId, color, size },
     });
-  } else {
-    await prisma.cartItem.create({
-      data: { sessionId, productId, color, size, quantity },
-    });
-  }
 
-  res.json({ message: 'Товар додано до корзини' });
+    if (existing) {
+      await prisma.cartItem.update({
+        where: { id: existing.id },
+        data: { quantity: existing.quantity + quantity },
+      });
+    } else {
+      await prisma.cartItem.create({
+        data: { sessionId, productId, color, size, quantity },
+      });
+    }
+
+    res.json({ message: 'Товар додано до корзини' });
+
+  } catch (error) {
+    console.error('❌ POST /api/cart помилка:', error);
+    res.status(500).json({ message: 'Серверна помилка при додаванні товару' });
+  }
 });
 
 // === PUT: Оновити кількість ===
