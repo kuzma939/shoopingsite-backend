@@ -20,7 +20,8 @@ router.post('/', async (req, res) => {
       const product = {
         id: rawProduct.id,
         price: rawProduct.price,
-        isTop: rawProduct.isTop,
+        isTop: rawProduct.isTop ?? false,
+        isSpecialOffer: rawProduct.isSpecialOffer ?? false, // ✅ нове поле
         sku: rawProduct.sku,
         size: rawProduct.size,
         category: rawProduct.category,
@@ -44,3 +45,4 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+

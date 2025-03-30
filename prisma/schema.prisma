@@ -9,20 +9,21 @@ datasource db {
 }
 
 model Product {
-  id        Int      @id @default(autoincrement())
-  price     Int
-  isTop     Boolean
-  sku       String
-  size      String
-  category  String
-  image     String
+  id             Int        @id @default(autoincrement())
+  price          Int
+  isTop          Boolean
+  isSpecialOffer Boolean    @default(false) 
+  sku            String
+  size           String
+  category       String
+  image          String
 
   // 🔹 Потрібні для роботи з images і sizes з фронту:
-  images    Json
-  sizes     String[]
+  images         Json
+  sizes          String[]
 
   // 🔗 Зв’язок з корзиною
-  cartItems CartItem[]
+  cartItems      CartItem[]
 }
 
 model CartItem {

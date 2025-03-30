@@ -11,6 +11,8 @@ async function main() {
         ? raw.images.filter(img => typeof img === 'string')
         : [],
       sizes: Array.isArray(raw.sizes) ? raw.sizes : [],
+      isTop: raw.isTop ?? false,
+      isSpecialOffer: raw.isSpecialOffer ?? false, // ✅ нове поле
     };
 
     try {
@@ -19,6 +21,7 @@ async function main() {
         update: {
           price: product.price,
           isTop: product.isTop,
+          isSpecialOffer: product.isSpecialOffer, // ✅
           sku: product.sku,
           size: product.size,
           category: product.category,
@@ -30,6 +33,7 @@ async function main() {
           id: product.id,
           price: product.price,
           isTop: product.isTop,
+          isSpecialOffer: product.isSpecialOffer, // ✅
           sku: product.sku,
           size: product.size,
           category: product.category,
