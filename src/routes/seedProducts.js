@@ -21,7 +21,7 @@ router.post('/', async (req, res) => {
         id: rawProduct.id,
         price: rawProduct.price,
         isTop: rawProduct.isTop ?? false,
-        isSpecialOffer: rawProduct.isSpecialOffer ?? false, // ✅ нове поле
+        isSpecialOffer: rawProduct.isSpecialOffer ?? false, 
         sku: rawProduct.sku,
         size: rawProduct.size,
         category: rawProduct.category,
@@ -31,9 +31,10 @@ router.post('/', async (req, res) => {
       };
 
       await prisma.product.upsert({
-        where: { id: product.id },
-        update: product,
-        create: product,
+        where: { id: product.id }, // шукає по id
+  update: product,           // якщо є — оновлює
+  create: product,            // якщо немає — додає
+   
       });
     }
 
