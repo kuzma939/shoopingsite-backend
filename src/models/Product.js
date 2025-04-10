@@ -9,8 +9,21 @@ const productSchema = new mongoose.Schema({
   size: String,
   category: String,
   image: String,
-  images: [String],
+  images: {
+    type: [String],
+    default: [],
+  },
   sizes: [String],
+
+  // 🆕 translations — як об'єкт з мовами
+  translations: {
+    type: Object,
+    default: {}
+  }
+
+}, {
+  collection: 'products', // 🛑 ОБОВ’ЯЗКОВО вкажи явно, щоб не було плутанини з іменами
+  timestamps: true
 });
 
 module.exports = mongoose.model('Product', productSchema);

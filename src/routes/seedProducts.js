@@ -28,6 +28,7 @@ router.post('/', async (req, res) => {
         image: rawProduct.image,
         images: cleanedImages,
         sizes: cleanedSizes,
+        translations: rawProduct.translations ?? {},
       };
 
       // ⬆️ Якщо продукт існує — оновити, інакше — створити
