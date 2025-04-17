@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const productSchema = new mongoose.Schema({
   id: { type: String, unique: true },
@@ -14,16 +14,15 @@ const productSchema = new mongoose.Schema({
     default: [],
   },
   sizes: [String],
-
-  // 🆕 translations — як об'єкт з мовами
   translations: {
     type: Object,
-    default: {}
+    default: {},
   }
-
 }, {
-  collection: 'products', // 🛑 ОБОВ’ЯЗКОВО вкажи явно, щоб не було плутанини з іменами
+  collection: 'products', // 👌 фіксуємо назву колекції
   timestamps: true
 });
 
-module.exports = mongoose.model('Product', productSchema);
+const Product = mongoose.model('Product', productSchema);
+
+export default Product;

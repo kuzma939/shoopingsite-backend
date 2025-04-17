@@ -1,8 +1,9 @@
-const mongoose = require('mongoose');
-const Product = require('../models/Product');
-require('dotenv').config();
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+import Product from '../models/Product.js';
+import seedProducts from './productsData.json' assert { type: 'json' };
 
-const seedProducts = require('./productsData.json'); // або будь-який твій масив продуктів
+dotenv.config();
 
 const seed = async () => {
   try {
@@ -11,7 +12,7 @@ const seed = async () => {
       useUnifiedTopology: true,
     });
 
-    await Product.deleteMany(); // очистити колекцію (опціонально)
+    await Product.deleteMany(); // очистити колекцію
     await Product.insertMany(seedProducts); // вставити продукти
 
     console.log('✅ MongoDB: Products seeded successfully');

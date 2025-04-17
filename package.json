@@ -2,6 +2,7 @@
   "name": "shoopingsite-backend",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
@@ -15,7 +16,11 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "mongoose": "^8.13.2"
+    "liqpay": "^0.0.1",
+    "mongoose": "^8.13.2",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^6.10.1",
+    "stripe": "^18.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9",

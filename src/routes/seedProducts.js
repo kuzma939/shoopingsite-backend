@@ -1,6 +1,7 @@
-const express = require('express');
+import express from 'express';
+import Product from '../models/Product.js';
+
 const router = express.Router();
-const Product = require('../models/Product'); // Mongoose модель
 
 router.post('/', async (req, res) => {
   const rawProducts = req.body;
@@ -33,8 +34,8 @@ router.post('/', async (req, res) => {
 
       // ⬆️ Якщо продукт існує — оновити, інакше — створити
       await Product.findOneAndUpdate(
-        { id: product.id },  // пошук по id
-        product,             // оновити або створити
+        { id: product.id },
+        product,
         { upsert: true, new: true }
       );
     }
@@ -46,7 +47,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
+
 {/*const express = require('express');
 const router = express.Router();
 const prisma = require('../prisma');
