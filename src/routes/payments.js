@@ -58,49 +58,54 @@ router.post('/stripe', async (req, res) => {
 });
 
 // === 📦 LiqPay HTML-форма
-router.post('/liqpay', (req, res) => {
-    const { amount, resultUrl, serverUrl, order } = req.body;
-
-    // 1. Зберігаємо order у БД і отримуємо _id
-    const tempOrder = await Order.create(order);
- // 2. Використовуємо лише ID у order_id
- const orderId = tempOrder._id.toString();
-
-    const orderData = {
-      public_key: PUBLIC_KEY,
-      version: '3',
-      action: 'pay',
-      amount,
-      currency: 'UAH',
-      description: 'Shop Order',
-      order_id: orderId, // тепер це JSON строка з усією інфою
-      result_url: resultUrl,
-      server_url: serverUrl,
-    };
-    
-  const data = base64(orderData);
-  const signature = createSignature(PRIVATE_KEY, data);
-
-  const html = `
-    <form method="POST" action="https://www.liqpay.ua/api/3/checkout" accept-charset="utf-8">
-      <input type="hidden" name="data" value="${data}" />
-      <input type="hidden" name="signature" value="${signature}" />
-      <input type="submit" value="Pay with LiqPay" />
-    </form>
-  `;
-
-  res.send(html);
-});
-
-// === ✅ LiqPay Callback
+router.post('/liqpay', async (req, res) => {
+    try {
+      const { amount, resultUrl, serverUrl, order } = req.body;
+  
+      // 1. Зберігаємо замовлення в базу
+      const tempOrder = await Order.create(order);
+  
+      // 2. Передаємо лише ID
+      const orderId = tempOrder._id.toString();
+  
+      const orderData = {
+        public_key: PUBLIC_KEY,
+        version: '3',
+        action: 'pay',
+        amount,
+        currency: 'UAH',
+        description: 'Замовлення в магазині',
+        order_id: orderId,
+        result_url: resultUrl,
+        server_url: serverUrl,
+      };
+  
+      const data = base64(orderData);
+      const signature = createSignature(PRIVATE_KEY, data);
+  
+      const html = `
+        <form method="POST" action="https://www.liqpay.ua/api/3/checkout" accept-charset="utf-8">
+          <input type="hidden" name="data" value="${data}" />
+          <input type="hidden" name="signature" value="${signature}" />
+          <input type="submit" value="Pay with LiqPay" />
+        </form>
+      `;
+  
+      res.send(html);
+    } catch (err) {
+      console.error('❌ LiqPay генерація HTML:', err);
+      res.status(500).send('Помилка генерації форми LiqPay');
+    }
+  });
+  
 // === ✅ LiqPay Callback
 router.post('/payment-callback', async (req, res) => {
     try {
       console.log('📨 CALLBACK BODY:', req.body);
   
       const { data, signature } = req.body;
-  
       const expectedSignature = createSignature(PRIVATE_KEY, data);
+  
       if (signature !== expectedSignature) {
         console.warn('⚠️ Невірний підпис від LiqPay');
         return res.status(403).send('Invalid signature');
@@ -116,19 +121,15 @@ router.post('/payment-callback', async (req, res) => {
   
         const order = await Order.findById(orderId);
         if (!order) {
-          console.error('❌ Замовлення не знайдено:', orderId);
+          console.warn('❗️ Замовлення не знайдено в базі:', orderId);
           return res.status(404).send('Order not found');
         }
   
-        // ✏️ Оновити статус оплати (опціонально)
-        order.paymentStatus = parsed.status;
-        await order.save();
-  
-        console.log('✅ Замовлення оновлено після успішної оплати');
-  
+        // 🔔 Надсилаємо email
         await sendClientConfirmation(order);
         await sendAdminNotification(order);
   
+        // 🧹 Очищаємо кошик
         if (order.sessionId) {
           await CartItem.deleteMany({ sessionId: order.sessionId });
           console.log('🧹 Корзина очищена:', order.sessionId);
@@ -144,5 +145,6 @@ router.post('/payment-callback', async (req, res) => {
       return res.status(500).send('Error');
     }
   });
+  
   
 export default router;
