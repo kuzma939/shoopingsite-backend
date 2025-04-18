@@ -13,6 +13,7 @@ const orderSchema = new mongoose.Schema({
   total: Number,
   prepay: Boolean,
   paymentMethod: String,
+  sessionId: String,
   createdAt: {
     type: Date,
     default: Date.now,

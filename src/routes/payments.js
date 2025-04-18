@@ -59,21 +59,21 @@ router.post('/stripe', async (req, res) => {
 
 // === 📦 LiqPay HTML-форма
 router.post('/liqpay', (req, res) => {
-  
-  const { amount, resultUrl, serverUrl, order } = req.body;
-  const orderId = 'order_' + Date.now(); 
-  const orderData = {
-    public_key: PUBLIC_KEY,
-    version: '3',
-    action: 'pay',
-    amount,
-    currency: 'UAH',
-    description: 'Shop Order',
-    order_id: orderId, 
-    result_url: resultUrl,
-    server_url: serverUrl,
-  };
+    const { amount, resultUrl, serverUrl, order } = req.body;
 
+    const orderId = JSON.stringify(order); // <-- важливо!
+    const orderData = {
+      public_key: PUBLIC_KEY,
+      version: '3',
+      action: 'pay',
+      amount,
+      currency: 'UAH',
+      description: 'Shop Order',
+      order_id: orderId, // тепер це JSON строка з усією інфою
+      result_url: resultUrl,
+      server_url: serverUrl,
+    };
+    
   const data = base64(orderData);
   const signature = createSignature(PRIVATE_KEY, data);
 
