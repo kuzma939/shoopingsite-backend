@@ -1,18 +1,20 @@
 import dotenv from 'dotenv';
 dotenv.config();
+
 import express from 'express';
 import Stripe from 'stripe';
 import crypto from 'crypto';
+import Order from '../models/Order.js';
+import CartItem from '../models/CartItem.js';
+import { sendClientConfirmation, sendAdminNotification } from '../utils/mailer.js';
 
 const router = express.Router();
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-console.log('🧪 STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY);
 
 const PUBLIC_KEY = process.env.LIQPAY_PUBLIC_KEY;
 const PRIVATE_KEY = process.env.LIQPAY_PRIVATE_KEY;
 
-// 🔧 Допоміжні функції
+// === 🔧 Хелпери
 function base64(data) {
   return Buffer.from(JSON.stringify(data)).toString('base64');
 }
@@ -24,18 +26,50 @@ function createSignature(privateKey, data) {
     .digest('base64');
 }
 
-// === 📦 LiqPay ===
-router.post('/liqpay', (req, res) => {
-  const { amount, resultUrl, serverUrl } = req.body;
+// === 💳 Stripe оплата
+router.post('/stripe', async (req, res) => {
+  const { amount, successUrl, cancelUrl } = req.body;
 
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Shop Order',
+            },
+            unit_amount: Math.round(amount * 100), // сума в центах
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('❌ Stripe помилка:', err);
+    res.status(500).json({ error: 'Stripe checkout failed' });
+  }
+});
+
+// === 📦 LiqPay HTML-форма
+router.post('/liqpay', (req, res) => {
+  
+  const { amount, resultUrl, serverUrl, order } = req.body;
+  const orderId = 'order_' + Date.now(); 
   const orderData = {
     public_key: PUBLIC_KEY,
     version: '3',
     action: 'pay',
     amount,
     currency: 'UAH',
-    description: 'Order from Shopping Site',
-    order_id: `order_${Date.now()}`,
+    description: 'Shop Order',
+    order_id: orderId, 
     result_url: resultUrl,
     server_url: serverUrl,
   };
@@ -54,41 +88,55 @@ router.post('/liqpay', (req, res) => {
   res.send(html);
 });
 
-// === 💳 Stripe ===
-router.post('/stripe', async (req, res) => {
-  const { amount, successUrl, cancelUrl } = req.body;
-
+// === ✅ LiqPay Callback
+router.post('/payment-callback', async (req, res) => {
+  
   try {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: 'Order from Shopping Site',
-          },
-          unit_amount: Math.round(amount * 100),
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-    });
+    console.log('📨 CALLBACK BODY:', req.body);
 
-    res.json({ url: session.url });
+    const { data, signature } = req.body;
+
+    const expectedSignature = createSignature(PRIVATE_KEY, data);
+    if (signature !== expectedSignature) {
+      console.warn('⚠️ Невірний підпис від LiqPay');
+      return res.status(403).send('Invalid signature');
+    }
+
+    const decoded = Buffer.from(data, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded);
+
+    console.log('📬 Callback від LiqPay:', parsed);
+
+    if (parsed.status === 'success' || parsed.status === 'sandbox') {
+      let order;
+
+      try {
+        order = JSON.parse(parsed.order_id);
+      } catch (err) {
+        console.error('❌ Неможливо розпарсити order_id:', parsed.order_id);
+        return res.status(400).send('Invalid order_id format');
+      }
+
+      const savedOrder = await Order.create(order);
+      console.log('✅ Замовлення збережено через LiqPay callback');
+
+      await sendClientConfirmation(order);
+      await sendAdminNotification(order);
+
+      if (order.sessionId) {
+        await CartItem.deleteMany({ sessionId: order.sessionId });
+        console.log('🧹 Корзина очищена:', order.sessionId);
+      }
+
+      return res.status(200).send('OK');
+    } else {
+      console.warn('⚠️ Оплата неуспішна:', parsed.status);
+      return res.status(200).send('Ignored');
+    }
   } catch (err) {
-    console.error('Stripe error:', err);
-    res.status(500).json({ error: 'Stripe checkout failed' });
+    console.error('❌ Callback LiqPay error:', err);
+    return res.status(500).send('Error');
   }
-});
-
-// === ✅ LiqPay callback (майбутня перевірка) ===
-router.post('/payment-callback', (req, res) => {
-  console.log('📩 Отримано callback від LiqPay:', req.body);
-  // TODO: перевірка підпису, статусу, оновлення замовлення у БД
-
-  res.status(200).send('OK');
 });
 
 export default router;
