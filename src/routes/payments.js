@@ -61,7 +61,11 @@ router.post('/stripe', async (req, res) => {
 router.post('/liqpay', (req, res) => {
     const { amount, resultUrl, serverUrl, order } = req.body;
 
-    const orderId = JSON.stringify(order); // <-- важливо!
+    // 1. Зберігаємо order у БД і отримуємо _id
+    const tempOrder = await Order.create(order);
+ // 2. Використовуємо лише ID у order_id
+ const orderId = tempOrder._id.toString();
+
     const orderData = {
       public_key: PUBLIC_KEY,
       version: '3',
@@ -89,54 +93,56 @@ router.post('/liqpay', (req, res) => {
 });
 
 // === ✅ LiqPay Callback
+// === ✅ LiqPay Callback
 router.post('/payment-callback', async (req, res) => {
+    try {
+      console.log('📨 CALLBACK BODY:', req.body);
   
-  try {
-    console.log('📨 CALLBACK BODY:', req.body);
-
-    const { data, signature } = req.body;
-
-    const expectedSignature = createSignature(PRIVATE_KEY, data);
-    if (signature !== expectedSignature) {
-      console.warn('⚠️ Невірний підпис від LiqPay');
-      return res.status(403).send('Invalid signature');
-    }
-
-    const decoded = Buffer.from(data, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded);
-
-    console.log('📬 Callback від LiqPay:', parsed);
-
-    if (parsed.status === 'success' || parsed.status === 'sandbox') {
-      let order;
-
-      try {
-        order = JSON.parse(parsed.order_id);
-      } catch (err) {
-        console.error('❌ Неможливо розпарсити order_id:', parsed.order_id);
-        return res.status(400).send('Invalid order_id format');
+      const { data, signature } = req.body;
+  
+      const expectedSignature = createSignature(PRIVATE_KEY, data);
+      if (signature !== expectedSignature) {
+        console.warn('⚠️ Невірний підпис від LiqPay');
+        return res.status(403).send('Invalid signature');
       }
-
-      const savedOrder = await Order.create(order);
-      console.log('✅ Замовлення збережено через LiqPay callback');
-
-      await sendClientConfirmation(order);
-      await sendAdminNotification(order);
-
-      if (order.sessionId) {
-        await CartItem.deleteMany({ sessionId: order.sessionId });
-        console.log('🧹 Корзина очищена:', order.sessionId);
+  
+      const decoded = Buffer.from(data, 'base64').toString('utf-8');
+      const parsed = JSON.parse(decoded);
+  
+      console.log('📬 Callback від LiqPay:', parsed);
+  
+      if (parsed.status === 'success' || parsed.status === 'sandbox') {
+        const orderId = parsed.order_id;
+  
+        const order = await Order.findById(orderId);
+        if (!order) {
+          console.error('❌ Замовлення не знайдено:', orderId);
+          return res.status(404).send('Order not found');
+        }
+  
+        // ✏️ Оновити статус оплати (опціонально)
+        order.paymentStatus = parsed.status;
+        await order.save();
+  
+        console.log('✅ Замовлення оновлено після успішної оплати');
+  
+        await sendClientConfirmation(order);
+        await sendAdminNotification(order);
+  
+        if (order.sessionId) {
+          await CartItem.deleteMany({ sessionId: order.sessionId });
+          console.log('🧹 Корзина очищена:', order.sessionId);
+        }
+  
+        return res.status(200).send('OK');
+      } else {
+        console.warn('⚠️ Оплата неуспішна:', parsed.status);
+        return res.status(200).send('Ignored');
       }
-
-      return res.status(200).send('OK');
-    } else {
-      console.warn('⚠️ Оплата неуспішна:', parsed.status);
-      return res.status(200).send('Ignored');
+    } catch (err) {
+      console.error('❌ Callback LiqPay error:', err);
+      return res.status(500).send('Error');
     }
-  } catch (err) {
-    console.error('❌ Callback LiqPay error:', err);
-    return res.status(500).send('Error');
-  }
-});
-
+  });
+  
 export default router;
