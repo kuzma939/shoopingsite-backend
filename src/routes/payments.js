@@ -148,7 +148,6 @@ router.post('/payment-callback', async (req, res) => {
   router.post('/fondy', async (req, res) => {
     try {
       const { amount, resultUrl, serverUrl } = req.body;
-  
       const orderId = crypto.randomUUID();
   
       const fondyData = {
@@ -161,8 +160,8 @@ router.post('/payment-callback', async (req, res) => {
         server_callback_url: serverUrl,
       };
   
-      const queryString = new URLSearchParams(fondyData).toString(); // 🟡 ВАЖЛИВО
-      const data = Buffer.from(queryString).toString('base64');       // 🟡 ВАЖЛИВО
+      const requestBody = { request: fondyData };
+      const data = Buffer.from(JSON.stringify(requestBody)).toString('base64');
   
       const signature = crypto
         .createHash('sha1')
@@ -184,7 +183,6 @@ router.post('/payment-callback', async (req, res) => {
       res.status(500).send('Помилка генерації форми Fondy');
     }
   });
-  
   
 // === ✅ Fondy Callback
 router.post('/fondy-callback', async (req, res) => {
