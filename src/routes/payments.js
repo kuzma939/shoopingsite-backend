@@ -160,8 +160,8 @@ router.post('/payment-callback', async (req, res) => {
         server_callback_url: serverUrl,
       };
   
-      const requestBody = { request: fondyData };
-      const data = Buffer.from(JSON.stringify(requestBody)).toString('base64');
+      const queryString = new URLSearchParams(fondyData).toString();
+      const data = Buffer.from(queryString).toString('base64');
   
       const signature = crypto
         .createHash('sha1')
