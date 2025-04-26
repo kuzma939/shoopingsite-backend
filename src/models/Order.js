@@ -14,6 +14,12 @@ const orderSchema = new mongoose.Schema({
   prepay: Boolean,
   paymentMethod: String,
   sessionId: String,
+  isPaid: {
+    type: Boolean,
+    default: false,
+  },
+  paymentId: String, // ID з Fondy / Stripe / LiqPay
+  orderId: String,    // опціонально: order_id з платіжки
   createdAt: {
     type: Date,
     default: Date.now,
@@ -23,3 +29,4 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 export default Order;
+
