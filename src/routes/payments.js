@@ -240,52 +240,47 @@ import { sendClientConfirmation, sendAdminNotification } from '../utils/mailer.j
 
 const router = express.Router();
 
-// === 🔧 Допоміжні функції
-function base64Json(obj) {
-  return Buffer.from(JSON.stringify(obj)).toString('base64');
+// 👉 Генерація підпису Fondy
+function generateFondySignature(secretKey, params) {
+  const filtered = Object.entries(params)
+    .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([_, v]) => v);
+
+  const signatureString = [secretKey, ...filtered, secretKey].join('|');
+  return crypto.createHash('sha1').update(signatureString).digest('hex');
 }
 
-function createSignatureFondy(secretKey, data) {
-  return crypto
-    .createHash('sha1')
-    .update(secretKey + data + secretKey)
-    .digest('base64');
-}
-
-// === 💳 Fondy HTML-форма
+// === 💳 Створення форми оплати Fondy
 router.post('/fondy', async (req, res) => {
   try {
-    const { amount, resultUrl, serverUrl, order } = req.body;
+    const { amount, resultUrl, serverUrl, order: orderData } = req.body;
 
-    // 1. Створюємо замовлення в базі
-    const newOrder = await Order.create(order);
-    const orderId = newOrder._id.toString();
+    // 1. Створюємо замовлення
+    const order = await Order.create(orderData);
+    const orderId = order._id.toString();
 
-    // 2. Формуємо Fondy запит
-    const requestData = {
-      request: {
-        merchant_id: process.env.FONDY_MERCHANT_ID,
-        order_id: orderId,
-        amount: amount * 100, // в копійках
-        currency: 'UAH',
-        order_desc: 'Оплата товару на latore.shop',
-        response_url: resultUrl,
-        server_callback_url: serverUrl,
-      },
+    const request = {
+      merchant_id: process.env.FONDY_MERCHANT_ID,
+      order_id: orderId,
+      amount: amount * 100, // копійки
+      currency: 'UAH',
+      order_desc: 'Оплата товару на latore.shop',
+      response_url: resultUrl,
+      server_callback_url: serverUrl,
     };
 
-    const data = base64Json(requestData);
-    const signature = createSignatureFondy(process.env.FONDY_SECRET_KEY, data);
+    const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
 
     const html = `
       <form method="POST" action="https://pay.fondy.eu/api/checkout/redirect/" accept-charset="utf-8">
-        <input type="hidden" name="data" value="${data}" />
         <input type="hidden" name="signature" value="${signature}" />
+        <input type="hidden" name="data" value="${Buffer.from(JSON.stringify({ request })).toString('base64')}" />
       </form>
       <script>document.forms[0].submit();</script>
     `;
 
-    console.log('✅ Fondy HTML-форма згенерована для замовлення:', orderId);
+    console.log('✅ Fondy HTML-форма згенерована для order:', orderId);
     res.send(html);
   } catch (err) {
     console.error('❌ Помилка при генерації Fondy-форми:', err);
@@ -293,25 +288,25 @@ router.post('/fondy', async (req, res) => {
   }
 });
 
-
-// === ✅ Fondy Callback
+// === 🧾 Обробка callback від Fondy
 router.post('/fondy-callback', async (req, res) => {
   try {
     const { data, signature } = req.body;
-    const expectedSignature = createSignatureFondy(process.env.FONDY_SECRET_KEY, data);
+    const decoded = Buffer.from(data, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded);
+    const response = parsed.response;
+
+    const expectedSignature = generateFondySignature(process.env.FONDY_SECRET_KEY, response);
 
     if (signature !== expectedSignature) {
       console.warn('⚠️ Невірний підпис від Fondy');
       return res.status(403).send('Invalid signature');
     }
 
-    const decoded = Buffer.from(data, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded)?.response;
+    console.log('📬 Callback від Fondy:', response);
 
-    console.log('📬 Callback від Fondy:', parsed);
-
-    if (parsed.order_status === 'approved') {
-      const orderId = parsed.order_id;
+    if (response.order_status === 'approved') {
+      const orderId = response.order_id;
       const order = await Order.findById(orderId);
 
       if (!order) {
@@ -320,7 +315,7 @@ router.post('/fondy-callback', async (req, res) => {
       }
 
       order.isPaid = true;
-      order.paymentId = parsed.payment_id;
+      order.paymentId = response.payment_id;
       await order.save();
 
       await sendClientConfirmation(order);
@@ -333,7 +328,7 @@ router.post('/fondy-callback', async (req, res) => {
 
       return res.status(200).send('OK');
     } else {
-      console.warn('⚠️ Оплата не пройшла:', parsed.order_status);
+      console.warn('⚠️ Оплата не пройшла:', response.order_status);
       return res.status(200).send('Ignored');
     }
   } catch (err) {
