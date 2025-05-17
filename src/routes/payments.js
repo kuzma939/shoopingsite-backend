@@ -180,10 +180,12 @@ router.post('/fondy', async (req, res) => {
     const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
 
     const html = `
-      <form method="POST" action="https://pay.fondy.eu/api/checkout/redirect/" accept-charset="utf-8">
-        <input type="hidden" name="data" value="${data}" />
-        <input type="hidden" name="signature" value="${signature}" />
-      </form>
+    <form method="POST" action="https://pay.fondy.eu/api/checkout/redirect/" accept-charset="utf-8">
+  <input type="hidden" name="data" value="eyJyZXF1ZXN0Ijp7Im1lcmNoYW50X2lkIjoiMTM5NjQyNCIsIm9yZGVyX2lkIjoiVGVzdE9yZGVyMTIzIiwiYW1vdW50IjoiMTAwMDAiLCJjdXJyZW5jeSI6IlVBSCIsIm9yZGVyX2Rlc2MiOiLQn9GA0LjQtdC90LjRhtC40Y8g0LTQu9GPINGC0LDQsdC40Y8g0YEg0LrQsNGA0LXQvNC10L3QuNC1IiwicmVzcG9uc2VfdXJsIjoiaHR0cHM6Ly9sYXRvcmUuc2hvcC9zdWNjZXNzIiwic2VydmVyX2NhbGxiYWNrX3VybCI6Imh0dHBzOi8vc2hvb3BpbmdzaXRlLWJhY2tlbmQtMS5vbnJlbmRlci5jb20vYXBpL3BheW1lbnRzL2ZvbmR5LWNhbGxiYWNrIn19" />
+  <input type="hidden" name="signature" value="c1a9d62d1c209bfe12e6ecb2a61ac26594fa5d5c" />
+  <button type="submit">Оплатити через Fondy</button>
+</form>
+
       <script>document.forms[0].submit();</script>
     `;
 
