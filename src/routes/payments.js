@@ -192,7 +192,8 @@ router.post('/fondy', async (req, res) => {
 
     res.send(html);
   } catch (err) {
-    console.error('❌ Створення Fondy-форми:', err);
+    console.error('❌ Створення Fondy-форми:', err.message, err.stack);
+
     res.status(500).send('Помилка створення форми');
   }
 });
@@ -247,7 +248,9 @@ router.post('/fondy-callback', async (req, res) => {
     console.log('🕓 Замовлення не підтверджене (order_status):', response.order_status);
     return res.status(200).send('Ignored');
   } catch (err) {
-    console.error('❌ Callback Fondy помилка:', err);
+    
+    console.error('❌ Створення Fondy-форми:', err);
+   
     res.status(500).send('Callback error');
   }
 });
