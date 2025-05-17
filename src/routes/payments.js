@@ -147,7 +147,6 @@ router.post('/payment-callback', async (req, res) => {
       return res.status(500).send('Error');
     }
   });
-
 // === 🔐 Підпис для Fondy
 function generateFondySignature(secretKey, params) {
   const filtered = Object.entries(params)
@@ -159,7 +158,7 @@ function generateFondySignature(secretKey, params) {
   return crypto.createHash('sha1').update(signatureString).digest('hex');
 }
 
-// === 💳 Генерація HTML-форми оплати Fondy
+// === 💳 Створення платежу Fondy (ПРАВИЛЬНО)
 router.post('/fondy', async (req, res) => {
   try {
     const { amount, resultUrl, serverUrl, order } = req.body;
@@ -177,13 +176,12 @@ router.post('/fondy', async (req, res) => {
       server_callback_url: serverUrl,
     };
 
+    // ✅ підпис рахується до додавання в payload
     const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
 
     const payload = {
-      request: {
-        ...request,
-        signature,
-      },
+      request,
+      signature,
     };
 
     const response = await axios.post('https://api.fondy.eu/api/checkout/url/', payload);
@@ -201,7 +199,6 @@ router.post('/fondy', async (req, res) => {
     res.status(500).send('Помилка створення платежу Fondy');
   }
 });
-
 {/*
 router.post('/fondy', async (req, res) => {
   try {
