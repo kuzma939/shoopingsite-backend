@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+{/*import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
@@ -205,6 +205,117 @@ router.post('/fondy-callback', async (req, res) => {
 
       if (!order) {
         console.warn('❗️ Замовлення не знайдено:', parsed.order_id);
+        return res.status(404).send('Order not found');
+      }
+
+      order.isPaid = true;
+      order.paymentId = parsed.payment_id;
+      await order.save();
+
+      await sendClientConfirmation(order);
+      await sendAdminNotification(order);
+
+      if (order.sessionId) {
+        await CartItem.deleteMany({ sessionId: order.sessionId });
+        console.log('🧹 Кошик очищено:', order.sessionId);
+      }
+
+      return res.status(200).send('OK');
+    } else {
+      console.warn('⚠️ Оплата не пройшла:', parsed.order_status);
+      return res.status(200).send('Ignored');
+    }
+  } catch (err) {
+    console.error('❌ Fondy callback помилка:', err);
+    return res.status(500).send('Callback error');
+  }
+});
+
+export default router;*/}
+import express from 'express';
+import crypto from 'crypto';
+import Order from '../models/Order.js';
+import CartItem from '../models/CartItem.js';
+import { sendClientConfirmation, sendAdminNotification } from '../utils/mailer.js';
+
+const router = express.Router();
+
+// === 🔧 Допоміжні функції
+function base64Json(obj) {
+  return Buffer.from(JSON.stringify(obj)).toString('base64');
+}
+
+function createSignatureFondy(secretKey, data) {
+  return crypto
+    .createHash('sha1')
+    .update(secretKey + data + secretKey)
+    .digest('base64');
+}
+
+// === 💳 Fondy HTML-форма
+router.post('/fondy', async (req, res) => {
+  try {
+    const { amount, resultUrl, serverUrl, order } = req.body;
+
+    // 1. Створюємо замовлення в базі
+    const newOrder = await Order.create(order);
+    const orderId = newOrder._id.toString();
+
+    // 2. Формуємо Fondy запит
+    const requestData = {
+      request: {
+        merchant_id: process.env.FONDY_MERCHANT_ID,
+        order_id: orderId,
+        amount: amount * 100, // в копійках
+        currency: 'UAH',
+        order_desc: 'Оплата товару на latore.shop',
+        response_url: resultUrl,
+        server_callback_url: serverUrl,
+      },
+    };
+
+    const data = base64Json(requestData);
+    const signature = createSignatureFondy(process.env.FONDY_SECRET_KEY, data);
+
+    const html = `
+      <form method="POST" action="https://pay.fondy.eu/api/checkout/redirect/" accept-charset="utf-8">
+        <input type="hidden" name="data" value="${data}" />
+        <input type="hidden" name="signature" value="${signature}" />
+      </form>
+      <script>document.forms[0].submit();</script>
+    `;
+
+    console.log('✅ Fondy HTML-форма згенерована для замовлення:', orderId);
+    res.send(html);
+  } catch (err) {
+    console.error('❌ Помилка при генерації Fondy-форми:', err);
+    res.status(500).send('Помилка генерації форми Fondy');
+  }
+});
+
+
+// === ✅ Fondy Callback
+router.post('/fondy-callback', async (req, res) => {
+  try {
+    const { data, signature } = req.body;
+    const expectedSignature = createSignatureFondy(process.env.FONDY_SECRET_KEY, data);
+
+    if (signature !== expectedSignature) {
+      console.warn('⚠️ Невірний підпис від Fondy');
+      return res.status(403).send('Invalid signature');
+    }
+
+    const decoded = Buffer.from(data, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded)?.response;
+
+    console.log('📬 Callback від Fondy:', parsed);
+
+    if (parsed.order_status === 'approved') {
+      const orderId = parsed.order_id;
+      const order = await Order.findById(orderId);
+
+      if (!order) {
+        console.warn('❗️ Замовлення не знайдено:', orderId);
         return res.status(404).send('Order not found');
       }
 
