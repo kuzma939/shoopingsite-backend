@@ -149,14 +149,11 @@ router.post('/payment-callback', async (req, res) => {
   });
   // 🧮 Генерація підпису для Fondy
   function generateFondySignature(secretKey, params) {
-    const sorted = Object.keys(params)
-      .sort()
-      .map((key) => params[key]);
-  
-    const signatureString = [secretKey, ...sorted, secretKey].join('|');
-  
+    const values = Object.values(params); // ⚠️ НЕ сортуй!
+    const signatureString = [secretKey, ...values, secretKey].join('|');
     return crypto.createHash('sha1').update(signatureString).digest('hex');
   }
+  
   
 
 // 📦 Запит на створення платежу
