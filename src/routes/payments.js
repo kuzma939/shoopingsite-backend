@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
+import axios from 'axios';
 
 import express from 'express';
 import Stripe from 'stripe';
