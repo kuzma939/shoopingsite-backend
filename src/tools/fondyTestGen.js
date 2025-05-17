@@ -12,7 +12,7 @@ function generateFondySignature(secretKey, params) {
 
 // 👇 ВСТАВ СВІЙ ORDER_ID з відповіді /fondy
 const payload = {
-  order_id: 'f9e5fde1294ccc7541992ebecd8704b03f6a2510',
+  order_id: '8839b92665fc8188037cc956a956154c7a89087d',
   order_status: 'approved',
   amount: 9900,
   payment_id: 'test-payment-id'
