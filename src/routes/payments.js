@@ -182,8 +182,6 @@ router.post('/fondy', async (req, res) => {
         signature, // 🔹 всередині request!
       },
     };
-    
-    console.log('📦 Payload до Fondy:', JSON.stringify(payload, null, 2));
     const fondyRes = await axios.post('https://api.fondy.eu/api/checkout/url/', payload);
       const { response: fondyResp } = fondyRes.data;
 
