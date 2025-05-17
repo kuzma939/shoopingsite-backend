@@ -269,16 +269,19 @@ router.post('/fondy', async (req, res) => {
       response_url: resultUrl,
       server_callback_url: serverUrl,
     };
-
+    const data = Buffer.from(JSON.stringify({ request })).toString('base64');
     const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
-
+    console.log('🧾 Fondy data:', data);
+    console.log('🔐 Fondy signature:', signature);
     const html = `
       <form method="POST" action="https://pay.fondy.eu/api/checkout/redirect/" accept-charset="utf-8">
+        <input type="hidden" name="data" value="${data}" />
         <input type="hidden" name="signature" value="${signature}" />
-        <input type="hidden" name="data" value="${Buffer.from(JSON.stringify({ request })).toString('base64')}" />
       </form>
       <script>document.forms[0].submit();</script>
     `;
+    
+  
 
     console.log('✅ Fondy HTML-форма згенерована для order:', orderId);
     res.send(html);
