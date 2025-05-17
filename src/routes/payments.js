@@ -164,6 +164,45 @@ router.post('/fondy', async (req, res) => {
     const { amount, resultUrl, serverUrl, order } = req.body;
     const tempId = crypto.randomUUID();
 
+    await TempOrder.create({ orderId: tempId, orderData: order });
+
+    const request = {
+      merchant_id: process.env.FONDY_MERCHANT_ID,
+      order_id: tempId,
+      amount: amount * 100, // копійки
+      currency: 'UAH',
+      order_desc: 'Оплата товару на latore.shop',
+      response_url: resultUrl,
+      server_callback_url: serverUrl,
+    };
+
+    const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
+
+    const response = await axios.post('https://api.fondy.eu/api/checkout/url/', {
+      request,
+      signature,
+    });
+
+    const { response: fondyResp } = response.data;
+
+    if (fondyResp.response_status !== 'success') {
+      console.error('❌ Fondy не повернув успішну відповідь:', fondyResp);
+      return res.status(500).send('Fondy API error');
+    }
+
+    res.json({ checkout_url: fondyResp.checkout_url });
+
+  } catch (err) {
+    console.error('❌ Fondy API помилка:', err.message, err.stack);
+    res.status(500).send('Помилка створення платежу Fondy');
+  }
+});
+{/*
+router.post('/fondy', async (req, res) => {
+  try {
+    const { amount, resultUrl, serverUrl, order } = req.body;
+    const tempId = crypto.randomUUID();
+
     // 1. Зберігаємо тимчасове замовлення
     await TempOrder.create({ orderId: tempId, orderData: order });
 
@@ -202,7 +241,7 @@ router.post('/fondy', async (req, res) => {
     res.status(500).send('Помилка створення форми');
   }
 });
-
+*/}
 // === 📬 Callback від Fondy
 router.post('/fondy-callback', async (req, res) => {
   try {
