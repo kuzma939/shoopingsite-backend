@@ -13,5 +13,4 @@ router.post('/', (req, res) => {
     res.status(200).json({ message: 'MongoDB: Products seeded successfully' });
   });
 });
-
 export default router;
