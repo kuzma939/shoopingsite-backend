@@ -147,7 +147,7 @@ router.post('/payment-callback', async (req, res) => {
       return res.status(500).send('Error');
     }
   });
-// === 🔐 Підпис для Fondy
+  // 🧮 Генерація підпису для Fondy
 function generateFondySignature(secretKey, params) {
   const filtered = Object.entries(params)
     .filter(([_, v]) => v !== undefined && v !== null && v !== '')
@@ -158,40 +158,44 @@ function generateFondySignature(secretKey, params) {
   return crypto.createHash('sha1').update(signatureString).digest('hex');
 }
 
-// === 💳 Створення платежу Fondy (ПРАВИЛЬНО)
+// 📦 Запит на створення платежу
 router.post('/fondy', async (req, res) => {
   try {
     const { amount, resultUrl, serverUrl, order } = req.body;
     const tempId = crypto.randomUUID();
 
+    // Зберігаємо тимчасове замовлення
     await TempOrder.create({ orderId: tempId, orderData: order });
 
     const request = {
       merchant_id: process.env.FONDY_MERCHANT_ID,
       order_id: tempId,
-      amount: amount * 100, // копійки
+      amount: amount * 100, // копійки!
       currency: 'UAH',
       order_desc: 'Оплата товару на latore.shop',
       response_url: resultUrl,
       server_callback_url: serverUrl,
     };
 
-    // ✅ підпис рахується до додавання в payload
+    // 🔐 Генерація підпису
     const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
 
+    // ⚠️ signature має бути ПОРУЧ з request, НЕ всередині
     const payload = {
       request,
       signature,
     };
 
-    const response = await axios.post('https://api.fondy.eu/api/checkout/url/', payload);
-    const { response: fondyResp } = response.data;
+    // Відправляємо на Fondy
+    const fondyRes = await axios.post('https://api.fondy.eu/api/checkout/url/', payload);
+    const { response: fondyResp } = fondyRes.data;
 
     if (fondyResp.response_status !== 'success') {
       console.error('❌ Fondy не повернув успішну відповідь:', fondyResp);
       return res.status(500).send('Fondy API error');
     }
 
+    // ✅ Надсилаємо користувачу URL для редиректу
     res.json({ checkout_url: fondyResp.checkout_url });
 
   } catch (err) {
@@ -199,6 +203,7 @@ router.post('/fondy', async (req, res) => {
     res.status(500).send('Помилка створення платежу Fondy');
   }
 });
+
 {/*
 router.post('/fondy', async (req, res) => {
   try {
