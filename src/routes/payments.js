@@ -166,31 +166,27 @@ router.post('/fondy', async (req, res) => {
 
     // Зберігаємо тимчасове замовлення
     await TempOrder.create({ orderId: tempId, orderData: order });
-
     const request = {
       merchant_id: process.env.FONDY_MERCHANT_ID,
       order_id: tempId,
-      amount: amount * 100, // копійки!
+      amount: amount * 100,
       currency: 'UAH',
       order_desc: 'Оплата товару на latore.shop',
       response_url: resultUrl,
       server_callback_url: serverUrl,
     };
-
-    // 🔐 Генерація підпису
+    
     const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
-
-    // ⚠️ signature має бути ПОРУЧ з request, НЕ всередині
+    
     const payload = {
-      request,
-      signature,
+      request: {
+        ...request,
+        signature, // 🔹 всередині request!
+      },
     };
-
-    // Відправляємо на Fondy
-    console.log('🔍 Payload до Fondy:', JSON.stringify(payload, null, 2));
-
+    
     const fondyRes = await axios.post('https://api.fondy.eu/api/checkout/url/', payload);
-    const { response: fondyResp } = fondyRes.data;
+      const { response: fondyResp } = fondyRes.data;
 
     if (fondyResp.response_status !== 'success') {
       console.error('❌ Fondy не повернув успішну відповідь:', fondyResp);
