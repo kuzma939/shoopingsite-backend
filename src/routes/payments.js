@@ -295,6 +295,7 @@ router.post('/fondy', async (req, res) => {
 // === 🧾 Обробка callback від Fondy
 router.post('/fondy-callback', async (req, res) => {
   try {
+    console.log('📩 CALLBACK BODY:', req.body); 
     const { data, signature } = req.body;
     const decoded = Buffer.from(data, 'base64').toString('utf-8');
     const parsed = JSON.parse(decoded);
@@ -309,15 +310,29 @@ router.post('/fondy-callback', async (req, res) => {
 
     console.log('📬 Callback від Fondy:', response);
     if (response.order_status === 'approved') {
-      const orderId = response.order_id;
-    
+      
       // ✅ Зберігаємо замовлення тільки зараз
-      const order = await Order.create({
-        ...orderDataFromSomewhere, // ти маєш передати або дістати orderData
-        isPaid: true,
-        paymentId: response.payment_id,
-        orderId: orderId,
-      });
+      const orderId = response.order_id;
+
+// ✅ Зберігаємо замовлення тільки зараз
+const order = await Order.create({
+  firstName: 'Test',
+  lastName: 'User',
+  email: 'test@example.com',
+  phone: '0000000000',
+  deliveryMethod: 'nova-poshta',
+  city: 'Test City',
+  warehouse: 'Test Warehouse',
+  comment: '',
+  total: response.amount / 100,
+  prepay: false,
+  paymentMethod: 'fondy',
+  sessionId: 'test-session',
+  isPaid: true,
+  paymentId: response.payment_id,
+  orderId: orderId,
+});
+
     
       await sendClientConfirmation(order);
       await sendAdminNotification(order);
