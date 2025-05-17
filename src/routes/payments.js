@@ -297,7 +297,7 @@ router.post('/fondy-callback', async (req, res) => {
     const { data, signature } = req.body;
     const decoded = Buffer.from(data, 'base64').toString('utf-8');
     const parsed = JSON.parse(decoded);
-    const response = parsed.response;
+    const response = parsed.response || parsed;
 
     const expectedSignature = generateFondySignature(process.env.FONDY_SECRET_KEY, response);
 
@@ -339,5 +339,6 @@ router.post('/fondy-callback', async (req, res) => {
     return res.status(500).send('Callback error');
   }
 });
+
 
 export default router;
