@@ -179,11 +179,14 @@ router.post('/fondy', async (req, res) => {
 
     const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
 
-    const response = await axios.post('https://api.fondy.eu/api/checkout/url/', {
-      request,
-      signature,
-    });
+    const payload = {
+      request: {
+        ...request,
+        signature,
+      },
+    };
 
+    const response = await axios.post('https://api.fondy.eu/api/checkout/url/', payload);
     const { response: fondyResp } = response.data;
 
     if (fondyResp.response_status !== 'success') {
@@ -198,6 +201,7 @@ router.post('/fondy', async (req, res) => {
     res.status(500).send('Помилка створення платежу Fondy');
   }
 });
+
 {/*
 router.post('/fondy', async (req, res) => {
   try {
