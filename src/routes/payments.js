@@ -158,6 +158,7 @@ router.post('/payment-callback', async (req, res) => {
 
 // 📦 Запит на створення платежу
 router.post('/fondy', async (req, res) => {
+  console.log('📥 Запит на /fondy отримано');
   try {
     const { amount, resultUrl, serverUrl, order } = req.body;
     const tempId = crypto.randomUUID();
