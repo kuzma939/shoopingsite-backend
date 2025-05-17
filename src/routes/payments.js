@@ -236,17 +236,12 @@ import express from 'express';
 import crypto from 'crypto';
 import Order from '../models/Order.js';
 import CartItem from '../models/CartItem.js';
+import TempOrder from '../models/TempOrder.js';
 import { sendClientConfirmation, sendAdminNotification } from '../utils/mailer.js';
-import {
-  readTempOrders,
-  saveTempOrders,
-  getOrderById,
-  deleteOrderById,
-} from '../utils/tempOrders.js';
 
 const router = express.Router();
 
-// 🔐 Підпис
+// 🔐 Підпис Fondy
 function generateFondySignature(secretKey, params) {
   const filtered = Object.entries(params)
     .filter(([_, v]) => v !== undefined && v !== null && v !== '')
@@ -257,15 +252,14 @@ function generateFondySignature(secretKey, params) {
   return crypto.createHash('sha1').update(signatureString).digest('hex');
 }
 
-// 💳 Створення форми оплати
+// 💳 Створення Fondy-форми
 router.post('/fondy', async (req, res) => {
   try {
     const { amount, resultUrl, serverUrl, order } = req.body;
     const tempId = crypto.randomUUID();
 
-    const tempOrders = readTempOrders();
-    tempOrders[tempId] = order;
-    saveTempOrders(tempOrders);
+    // 👉 Зберігаємо замовлення в MongoDB
+    await TempOrder.create({ orderId: tempId, orderData: order });
 
     const request = {
       merchant_id: process.env.FONDY_MERCHANT_ID,
@@ -288,10 +282,10 @@ router.post('/fondy', async (req, res) => {
       <script>document.forms[0].submit();</script>
     `;
 
-    console.log('✅ Збережено тимчасове замовлення:', tempId);
+    console.log('✅ Fondy: створено форму для замовлення:', tempId);
     res.send(html);
   } catch (err) {
-    console.error('❌ Помилка створення Fondy-форми:', err);
+    console.error('❌ Fondy генерація форми помилка:', err);
     res.status(500).send('Помилка генерації форми Fondy');
   }
 });
@@ -314,21 +308,21 @@ router.post('/fondy-callback', async (req, res) => {
 
     if (response.order_status === 'approved') {
       const orderId = response.order_id;
-      const orderData = getOrderById(orderId);
+      const temp = await TempOrder.findOne({ orderId });
 
-      if (!orderData) {
+      if (!temp) {
         console.warn('❗️ Тимчасове замовлення не знайдено:', orderId);
         return res.status(404).send('Temp order not found');
       }
 
       const order = await Order.create({
-        ...orderData,
+        ...temp.orderData,
         isPaid: true,
         paymentId: response.payment_id,
         orderId,
       });
 
-      deleteOrderById(orderId);
+      await TempOrder.deleteOne({ orderId });
 
       await sendClientConfirmation(order);
       await sendAdminNotification(order);
