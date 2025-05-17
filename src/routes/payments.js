@@ -254,25 +254,28 @@ function generateFondySignature(secretKey, params) {
 // === 💳 Створення форми оплати Fondy
 router.post('/fondy', async (req, res) => {
   try {
-    const { amount, resultUrl, serverUrl, order: orderData } = req.body;
+    const { amount, resultUrl, serverUrl, order } = req.body;
 
-    // 1. Створюємо замовлення
-    const order = await Order.create(orderData);
-    const orderId = order._id.toString();
+    // ❗️ Замовлення НЕ зберігаємо тут
+
+    const tempId = crypto.randomUUID(); // тимчасовий ідентифікатор
 
     const request = {
       merchant_id: process.env.FONDY_MERCHANT_ID,
-      order_id: orderId,
-      amount: amount * 100, // копійки
+      order_id: tempId,
+      amount: amount * 100,
       currency: 'UAH',
       order_desc: 'Оплата товару на latore.shop',
       response_url: resultUrl,
       server_callback_url: serverUrl,
     };
+
     const data = Buffer.from(JSON.stringify({ request })).toString('base64');
     const signature = generateFondySignature(process.env.FONDY_SECRET_KEY, request);
-    console.log('🧾 Fondy data:', data);
-    console.log('🔐 Fondy signature:', signature);
+
+    // Зберігаємо orderData тимчасово — наприклад, у Redis, файлі або в Map (якщо хочеш, підкажу як)
+    // або просто додаємо `tempOrders[tempId] = order` в памʼять (тимчасово для перевірки)
+
     const html = `
       <form method="POST" action="https://pay.fondy.eu/api/checkout/redirect/" accept-charset="utf-8">
         <input type="hidden" name="data" value="${data}" />
@@ -280,16 +283,14 @@ router.post('/fondy', async (req, res) => {
       </form>
       <script>document.forms[0].submit();</script>
     `;
-    
-  
 
-    console.log('✅ Fondy HTML-форма згенерована для order:', orderId);
     res.send(html);
   } catch (err) {
     console.error('❌ Помилка при генерації Fondy-форми:', err);
     res.status(500).send('Помилка генерації форми Fondy');
   }
 });
+
 
 // === 🧾 Обробка callback від Fondy
 router.post('/fondy-callback', async (req, res) => {
@@ -307,23 +308,20 @@ router.post('/fondy-callback', async (req, res) => {
     }
 
     console.log('📬 Callback від Fondy:', response);
-
     if (response.order_status === 'approved') {
       const orderId = response.order_id;
-      const order = await Order.findById(orderId);
-
-      if (!order) {
-        console.warn('❗️ Замовлення не знайдено:', orderId);
-        return res.status(404).send('Order not found');
-      }
-
-      order.isPaid = true;
-      order.paymentId = response.payment_id;
-      await order.save();
-
+    
+      // ✅ Зберігаємо замовлення тільки зараз
+      const order = await Order.create({
+        ...orderDataFromSomewhere, // ти маєш передати або дістати orderData
+        isPaid: true,
+        paymentId: response.payment_id,
+        orderId: orderId,
+      });
+    
       await sendClientConfirmation(order);
       await sendAdminNotification(order);
-
+   
       if (order.sessionId) {
         await CartItem.deleteMany({ sessionId: order.sessionId });
         console.log('🧹 Кошик очищено:', order.sessionId);
