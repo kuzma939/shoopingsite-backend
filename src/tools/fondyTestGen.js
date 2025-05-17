@@ -9,9 +9,9 @@ function generateFondySignature(secretKey, params) {
   const signatureString = [secretKey, ...filtered, secretKey].join('|');
   return crypto.createHash('sha1').update(signatureString).digest('hex');
 }
-
+const order_id = 'ABC-123';
 const payload = {
-  order_id: 'test-123',
+    order_id,
   order_status: 'approved',
   amount: 9900,
   payment_id: 'test-payment-id',
