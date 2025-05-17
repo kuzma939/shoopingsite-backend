@@ -147,17 +147,16 @@ router.post('/payment-callback', async (req, res) => {
       return res.status(500).send('Error');
     }
   });
-  // 🧮 Генерація підпису для Fondy
-  function generateFondySignature(secretKey, params) {
-    const sorted = Object.keys(params)
-      .sort()
-      .map((key) => params[key]);
-      
-    const signatureString = [secretKey, ...sorted, secretKey].join('|');
-    return crypto.createHash('sha1').update(signatureString).digest('hex');
-  }
-  
+  // === 🔐 Підпис для Fondy
+function generateFondySignature(secretKey, params) {
+  const filtered = Object.entries(params)
+    .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([_, v]) => v);
 
+  const signatureString = [secretKey, ...filtered, secretKey].join('|');
+  return crypto.createHash('sha1').update(signatureString).digest('hex');
+}
 router.post('/fondy', async (req, res) => {
   try {
     const { amount, resultUrl, serverUrl, order } = req.body;
