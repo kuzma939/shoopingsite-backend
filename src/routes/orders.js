@@ -14,9 +14,11 @@ router.post('/', async (req, res) => {
     console.log('✅ Замовлення збережено:', savedOrder);
 
     // ⬇️ Надіслати листи
-    await sendClientConfirmation(order);
-    await sendAdminNotification(order);
-
+    if (order.paymentMethod === 'no-payment') {
+      await sendClientConfirmation(order);
+      await sendAdminNotification(order);
+    }
+    
     // 🧹 Очистити корзину після замовлення
     if (order.sessionId) {
       await CartItem.deleteMany({ sessionId: order.sessionId });
