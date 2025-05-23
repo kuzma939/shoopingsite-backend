@@ -57,8 +57,9 @@ router.post('/', async (req, res) => {
         <script>document.forms[0].submit();</script>
       </form>
     `;
-
+    res.setHeader('Content-Type', 'text/html');
     res.send(html);
+    
   } catch (err) {
     console.error('❌ WayForPay помилка:', err);
     res.status(500).send('WayForPay error');
