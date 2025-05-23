@@ -137,4 +137,4 @@ router.post('/callback', async (req, res) => {
       res.status(500).send('Callback error');
     }
   });
-  
+  export default router;
