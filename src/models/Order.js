@@ -18,8 +18,15 @@ const orderSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  paymentId: String, // ID з Fondy / Stripe / LiqPay
-  orderId: String,    // опціонально: order_id з платіжки
+  paymentId: String,
+  orderId: String,
+  items: [
+    {
+      name: String,
+      price: Number,
+      quantity: Number,
+    }
+  ],
   createdAt: {
     type: Date,
     default: Date.now,
