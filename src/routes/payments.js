@@ -258,4 +258,104 @@ router.post('/fondy-callback', async (req, res) => {
   }
 });
 
+
+router.post('/wayforpay', async (req, res) => {
+  try {
+    const {
+      amount,
+      order,
+      resultUrl, // URL для повернення
+      serverUrl, // callback URL
+    } = req.body;
+
+    const merchantAccount = process.env.WAYFORPAY_MERCHANT;
+    const secretKey = process.env.WAYFORPAY_SECRET;
+    const orderReference = crypto.randomUUID();
+    const orderDate = Math.floor(Date.now() / 1000); // UNIX timestamp
+    const currency = 'UAH';
+
+    const productNames = order.items.map(i => i.name);
+    const productPrices = order.items.map(i => i.price);
+    const productCounts = order.items.map(i => i.quantity);
+
+    const signatureSource = [
+      merchantAccount,
+      orderReference,
+      orderDate,
+      amount,
+      currency,
+      productNames.join(';'),
+      productCounts.join(';'),
+      productPrices.join(';')
+    ];
+
+    const signature = crypto
+      .createHmac('md5', secretKey)
+      .update(signatureSource.join(';'))
+      .digest('hex');
+
+    const html = `
+      <form id="wayforpay-form" method="POST" action="https://secure.wayforpay.com/pay" accept-charset="utf-8">
+        <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
+        <input type="hidden" name="merchantDomainName" value="latore.shop" />
+        <input type="hidden" name="orderReference" value="${orderReference}" />
+        <input type="hidden" name="orderDate" value="${orderDate}" />
+        <input type="hidden" name="amount" value="${amount}" />
+        <input type="hidden" name="currency" value="${currency}" />
+        <input type="hidden" name="productName" value="${productNames.join(';')}" />
+        <input type="hidden" name="productCount" value="${productCounts.join(';')}" />
+        <input type="hidden" name="productPrice" value="${productPrices.join(';')}" />
+        <input type="hidden" name="language" value="UA" />
+        <input type="hidden" name="returnUrl" value="${resultUrl}" />
+        <input type="hidden" name="serviceUrl" value="${serverUrl}" />
+        <input type="hidden" name="merchantSignature" value="${signature}" />
+        <script>document.forms[0].submit();</script>
+      </form>
+    `;
+
+    // Опціонально: збережи замовлення в базу
+    await TempOrder.create({ orderId: orderReference, orderData: order });
+
+    res.send(html);
+  } catch (error) {
+    console.error('❌ WayForPay помилка:', error);
+    res.status(500).send('WayForPay error');
+  }
+});
+
+
+router.post('/wayforpay-callback', async (req, res) => {
+  try {
+    const { orderReference, transactionStatus } = req.body;
+
+    if (transactionStatus === 'Approved') {
+      const temp = await TempOrder.findOne({ orderId: orderReference });
+
+      if (!temp) return res.status(404).send('Temp order not found');
+
+      const order = await Order.create({
+        ...temp.orderData,
+        isPaid: true,
+        paymentId: orderReference,
+      });
+
+      await TempOrder.deleteOne({ orderId: orderReference });
+
+      await sendClientConfirmation(order);
+      await sendAdminNotification(order);
+
+      if (order.sessionId) {
+        await CartItem.deleteMany({ sessionId: order.sessionId });
+      }
+
+      return res.status(200).send('OK');
+    }
+
+    return res.status(200).send('Ignored');
+  } catch (err) {
+    console.error('❌ WayForPay callback error:', err);
+    res.status(500).send('Error');
+  }
+});
+
 export default router;

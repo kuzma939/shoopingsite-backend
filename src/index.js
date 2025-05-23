@@ -8,10 +8,12 @@ import { fileURLToPath } from 'url';
 import cartRouter from './routes/cart.js';
 import seedProductsRouter from './routes/seedProducts.js';
 import seedTriggerRouter from './routes/seedTrigger.js';
-import paymentsRouter from './routes/payments.js';
+
 import ordersRouter from './routes/orders.js';
 import geoCitiesRouter from './routes/geoCities.js';
 import Product from './models/Product.js';
+import paymentsRouter from './routes/payments/index.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
