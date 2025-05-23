@@ -19,11 +19,15 @@ router.post('/', async (req, res) => {
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
     const currency = 'UAH';
-
-    const productNames = order.items.map(i => i.name);
-    const productCounts = order.items.map(i => i.quantity);
-    const productPrices = order.items.map(i => i.price);
-
+    if (!order || !Array.isArray(order.items)) {
+        console.error('❌ Некоректні дані замовлення:', order);
+        return res.status(400).send('Invalid order data');
+      }
+      
+      const productNames = order.items.map(i => i.name);
+      const productCounts = order.items.map(i => i.quantity);
+      const productPrices = order.items.map(i => i.price);
+      
     const signatureSource = [
       merchantAccount,
       orderReference,
