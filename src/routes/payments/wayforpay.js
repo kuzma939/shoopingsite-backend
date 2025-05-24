@@ -55,8 +55,7 @@ router.post('/', async (req, res) => {
     const signature = generateSignature(secretKey, signatureSource);
     console.log('🪙 typeof currency:', typeof currency); // має бути 'string'
 
-    console.log('💴 currency value (debug):', currency, '| from', __filename);
-
+    
     console.log('🧾 merchantAccount:', merchantAccount);
     console.log('🌐 merchantDomainName:', merchantDomainName);
     console.log('🆔 orderReference:', orderReference);
