@@ -19,15 +19,20 @@ router.post('/', async (req, res) => {
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
     const currency = 'UAH';
-    if (!order || !Array.isArray(order.items)) {
-        console.error('❌ Некоректні дані замовлення:', order);
-        return res.status(400).send('Invalid order data');
-      }
-      
-      const productNames = order.items.map(i => i.name);
-      const productCounts = order.items.map(i => i.quantity);
-      const productPrices = order.items.map(i => i.price);
-      
+
+    if (!order.sessionId) {
+      return res.status(400).send('Missing sessionId');
+    }
+
+    const cartItems = await CartItem.find({ sessionId: order.sessionId });
+    if (cartItems.length === 0) {
+      return res.status(400).send('No items in cart');
+    }
+
+    const productNames = cartItems.map(i => i.productId); // або name, якщо зберігаєш назви
+    const productCounts = cartItems.map(i => i.quantity);
+    const productPrices = cartItems.map(i => i.price); // обов'язково зберігай ціну
+
     const signatureSource = [
       merchantAccount,
       orderReference,
@@ -61,85 +66,63 @@ router.post('/', async (req, res) => {
         <script>document.forms[0].submit();</script>
       </form>
     `;
+
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
-    
   } catch (err) {
     console.error('❌ WayForPay помилка:', err);
     res.status(500).send('WayForPay error');
   }
 });
+
 router.post('/callback', async (req, res) => {
-    try {
-      const secretKey = process.env.WAYFORPAY_SECRET;
-      const {
-        merchantAccount,
-        orderReference,
-        amount,
-        currency,
-        authCode,
-        cardPan,
-        transactionStatus,
-        reason,
-        reasonCode,
-        fee,
-        paymentSystem,
-        time,
-        merchantSignature
-      } = req.body;
-  
-      // ⚠️ УВАГА: порядок строго визначений документацією
-      const signatureData = [
-        merchantAccount,
-        orderReference,
-        amount,
-        currency,
-        authCode,
-        cardPan,
-        transactionStatus,
-        reason,
-        reasonCode,
-        fee,
-        paymentSystem,
-        time,
-      ];
-  
-      const expectedSignature = crypto
-        .createHmac('md5', secretKey)
-        .update(signatureData.join(';'))
-        .digest('hex');
-  
-      if (merchantSignature !== expectedSignature) {
-        console.warn('❗ Невірний підпис WayForPay');
-        return res.status(403).send('Invalid signature');
-      }
-  
-      // ✅ Підпис валідний — обробляємо
-      if (transactionStatus === 'Approved') {
-        const temp = await TempOrder.findOne({ orderId: orderReference });
-        if (!temp) return res.status(404).send('Temp order not found');
-  
-        const order = await Order.create({
-          ...temp.orderData,
-          isPaid: true,
-          paymentId: orderReference,
-        });
-  
-        await TempOrder.deleteOne({ orderId: orderReference });
-        await sendClientConfirmation(order);
-        await sendAdminNotification(order);
-  
-        if (order.sessionId) {
-          await CartItem.deleteMany({ sessionId: order.sessionId });
-        }
-  
-        return res.status(200).send('OK');
-      }
-  
-      return res.status(200).send('Ignored');
-    } catch (err) {
-      console.error('❌ WayForPay callback error:', err);
-      res.status(500).send('Callback error');
+  try {
+    const secretKey = process.env.WAYFORPAY_SECRET;
+    const {
+      merchantAccount, orderReference, amount, currency, authCode, cardPan,
+      transactionStatus, reason, reasonCode, fee, paymentSystem, time, merchantSignature
+    } = req.body;
+
+    const signatureData = [
+      merchantAccount, orderReference, amount, currency, authCode, cardPan,
+      transactionStatus, reason, reasonCode, fee, paymentSystem, time,
+    ];
+
+    const expectedSignature = crypto
+      .createHmac('md5', secretKey)
+      .update(signatureData.join(';'))
+      .digest('hex');
+
+    if (merchantSignature !== expectedSignature) {
+      return res.status(403).send('Invalid signature');
     }
-  });
-  export default router;
+
+    if (transactionStatus === 'Approved') {
+      const temp = await TempOrder.findOne({ orderId: orderReference });
+      if (!temp) return res.status(404).send('Temp order not found');
+
+      const order = await Order.create({
+        ...temp.orderData,
+        isPaid: true,
+        paymentId: orderReference,
+      });
+
+      await TempOrder.deleteOne({ orderId: orderReference });
+      await sendClientConfirmation(order);
+      await sendAdminNotification(order);
+
+      if (order.sessionId) {
+        await CartItem.deleteMany({ sessionId: order.sessionId });
+      }
+
+      return res.status(200).send('OK');
+    }
+
+    res.status(200).send('Ignored');
+  } catch (err) {
+    console.error('❌ WayForPay callback error:', err);
+    res.status(500).send('Callback error');
+  }
+});
+
+export default router;
