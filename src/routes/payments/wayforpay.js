@@ -46,9 +46,16 @@ router.post('/', async (req, res) => {
       ];
       
       
-
+      if (currency !== 'UAH') {
+        throw new Error(`❌ Валюта має бути 'UAH', а не '${currency}'`);
+      }
+      signatureSource.forEach((val, i) => {
+        console.log(`🔢 signatureSource[${i}]:`, val);
+      });
     const signature = generateSignature(secretKey, signatureSource);
-
+    console.log('🪙 typeof currency:', typeof currency); // має бути 'string'
+    console.log('💴 currency value:', currency);         // має бути 'UAH'
+    
     console.log('🧾 merchantAccount:', merchantAccount);
     console.log('🌐 merchantDomainName:', merchantDomainName);
     console.log('🆔 orderReference:', orderReference);
