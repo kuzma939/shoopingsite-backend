@@ -22,9 +22,9 @@ router.get('/', async (req, res) => {
         quantity: item.quantity,
         color: item.color,
         size: item.size,
-        price: product?.price,
+        price: item.price, // тепер прямо з CartItem
         image: product?.image,
-        name: product?.translations?.UA?.name || product?.sku,
+        name: item.name,   // тепер прямо з CartItem
       };
     });
 
@@ -51,13 +51,29 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ message: 'Продукт не знайдено' });
     }
 
+    const name =
+      product.translations?.UA?.name ||
+      product.translations?.EN?.name ||
+      product.name ||
+      product.sku;
+
+    const price = product.price;
+
     const existing = await CartItem.findOne({ sessionId, productId, color, size });
 
     if (existing) {
       existing.quantity += quantity;
       await existing.save();
     } else {
-      await CartItem.create({ sessionId, productId, color, size, quantity });
+      await CartItem.create({
+        sessionId,
+        productId,
+        name,
+        price,
+        color,
+        size,
+        quantity,
+      });
     }
 
     res.json({ message: 'Товар додано до корзини' });
