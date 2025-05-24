@@ -34,15 +34,17 @@ router.post('/', async (req, res) => {
     const productPrices = cartItems.map(i => i.price); // обов'язково зберігай ціну
 
     const signatureSource = [
-      merchantAccount,
-      orderReference,
-      orderDate,
-      amount,
-      currency,
-      productNames.join(';'),
-      productCounts.join(';'),
-      productPrices.join(';'),
-    ];
+        merchantAccount,
+        'latore.shop',            // merchantDomainName явно
+        orderReference,
+        orderDate,
+        amount,
+        currency,
+        productNames.join(';'),
+        productCounts.join(';'),
+        productPrices.join(';'),
+      ];
+      
 
     const signature = generateSignature(secretKey, signatureSource);
 
