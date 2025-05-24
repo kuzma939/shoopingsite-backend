@@ -28,12 +28,17 @@ router.post('/', async (req, res) => {
     if (cartItems.length === 0) return res.status(400).send('Cart is empty');
 
     // 🔎 Форматуємо суму точно у "1200.00"
+    const productNames = ['Test'];
+const productCounts = ['1'];
+const productPrices = ['100.00'];
+const formattedAmount = '100.00';
+{/*}
     const formattedAmount = Number(amount).toFixed(2);
 
     const productNames = cartItems.map(i => i.name);
     const productCounts = cartItems.map(i => i.quantity.toString());
     const productPrices = cartItems.map(i => i.price.toFixed(2)); // також формат цін
-    const signatureSource = [
+   */} const signatureSource = [
         merchantAccount,
         merchantDomainName,
         orderReference,
@@ -54,6 +59,7 @@ router.post('/', async (req, res) => {
       });
     const signature = generateSignature(secretKey, signatureSource);
     console.log('🪙 typeof currency:', typeof currency); // має бути 'string'
+    console.log('📐 FULL signature string:', signatureSource.join(';'));
 
     
     console.log('🧾 merchantAccount:', merchantAccount);
