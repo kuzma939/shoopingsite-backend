@@ -29,8 +29,10 @@ router.post('/', async (req, res) => {
     const formattedAmount = Number(amount).toFixed(2);
     const productNames = cartItems.map(i => String(i.name).trim());
     const productCounts = cartItems.map(i => String(i.quantity));
-    const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
-
+    const productPrices = cartItems.map(i =>
+        Number(String(i.price).replace(/[^\d.]/g, '')).toFixed(2)
+      );
+      
     const signatureSource = [
       merchantAccount,
       merchantDomainName,
