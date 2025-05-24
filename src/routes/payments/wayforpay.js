@@ -32,42 +32,39 @@ router.post('/', async (req, res) => {
     const productNames = cartItems.map(i => i.productId); // або name, якщо зберігаєш назви
     const productCounts = cartItems.map(i => i.quantity);
     const productPrices = cartItems.map(i => i.price); // обов'язково зберігай ціну
-
     const signatureSource = [
-        merchantAccount,
-        'latore.shop',            // merchantDomainName явно
-        orderReference,
-        orderDate,
-        amount,
-        currency,
-        productNames.join(';'),
-        productCounts.join(';'),
-        productPrices.join(';'),
+        'latore_shop',            // merchantAccount
+        'latore.shop',            // merchantDomainName (точно так само як у формі!)
+        orderReference,           // наприклад: crypto.randomUUID()
+        orderDate,                // UNIX timestamp (в секундах)
+        amount,                   // number
+        'UAH',                    // currency
+        productNames.join(';'),   // наприклад: "Dress;Skirt"
+        productCounts.join(';'),  // "1;2"
+        productPrices.join(';'),  // "1000;800"
       ];
+      const signature = generateSignature(secretKey, signatureSource);
       
-
-    const signature = generateSignature(secretKey, signatureSource);
-
     await TempOrder.create({ orderId: orderReference, orderData: order });
-
     const html = `
-      <form method="POST" action="https://secure.wayforpay.com/pay">
-        <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
-        <input type="hidden" name="merchantDomainName" value="latore.shop" />
-        <input type="hidden" name="orderReference" value="${orderReference}" />
-        <input type="hidden" name="orderDate" value="${orderDate}" />
-        <input type="hidden" name="amount" value="${amount}" />
-        <input type="hidden" name="currency" value="${currency}" />
-        <input type="hidden" name="productName" value="${productNames.join(';')}" />
-        <input type="hidden" name="productCount" value="${productCounts.join(';')}" />
-        <input type="hidden" name="productPrice" value="${productPrices.join(';')}" />
-        <input type="hidden" name="language" value="UA" />
-        <input type="hidden" name="returnUrl" value="${resultUrl}" />
-        <input type="hidden" name="serviceUrl" value="${serverUrl}" />
-        <input type="hidden" name="merchantSignature" value="${signature}" />
-        <script>document.forms[0].submit();</script>
-      </form>
-    `;
+    <form method="POST" action="https://secure.wayforpay.com/pay">
+      <input type="hidden" name="merchantAccount" value="latore_shop" />
+      <input type="hidden" name="merchantDomainName" value="latore.shop" />
+      <input type="hidden" name="orderReference" value="${orderReference}" />
+      <input type="hidden" name="orderDate" value="${orderDate}" />
+      <input type="hidden" name="amount" value="${amount}" />
+      <input type="hidden" name="currency" value="UAH" />
+      <input type="hidden" name="productName" value="${productNames.join(';')}" />
+      <input type="hidden" name="productCount" value="${productCounts.join(';')}" />
+      <input type="hidden" name="productPrice" value="${productPrices.join(';')}" />
+      <input type="hidden" name="language" value="UA" />
+      <input type="hidden" name="returnUrl" value="${resultUrl}" />
+      <input type="hidden" name="serviceUrl" value="${serverUrl}" />
+      <input type="hidden" name="merchantSignature" value="${signature}" />
+      <script>document.forms[0].submit();</script>
+    </form>
+  `;
+  
 
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
