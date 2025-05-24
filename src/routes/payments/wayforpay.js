@@ -19,7 +19,10 @@ router.post('/', async (req, res) => {
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
     const currency = 'UAH'; // ВАЖЛИВО: тільки UAH
-
+    if (currency !== 'UAH') {
+        console.error('❌ currency не валідна:', currency);
+      }
+      
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
 
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
