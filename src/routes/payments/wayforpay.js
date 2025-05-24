@@ -12,7 +12,9 @@ function generateSignature(secretKey, values) {
 router.post('/', async (req, res) => {
   try {
     const { amount, order, resultUrl, serverUrl } = req.body;
-
+    console.log('🧪 Сира сума з фронту:', amount);
+    console.log('🧪 Тип суми:', typeof amount);
+    
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
@@ -37,10 +39,12 @@ const productPrices = cartItems.map(i =>
   );
   
   // Очищення суми: прибирає зайве, на випадок якщо передається з грн
-  const formattedAmount = Number(String(amount).replace(/[^\d.]/g, '')).toFixed(2);
+  const rawAmount = typeof amount === 'string' ? amount.replace(/[^\d.]/g, '') : amount;
+const formattedAmount = Number(rawAmount).toFixed(2);
+
   const productCounts = cartItems.map(i => String(i.quantity));
    
-      
+   
     const signatureSource = [
       merchantAccount,
       merchantDomainName,
