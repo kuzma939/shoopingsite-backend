@@ -54,7 +54,7 @@ router.post('/', async (req, res) => {
     console.log('🆔 orderReference:', orderReference);
     console.log('📅 orderDate:', orderDate);
     console.log('💰 amount:', amount);
-    console.log('💴 UAH:', UAH);
+    console.log('💴 currency:', currency);
     
     console.log('📦 productNames:', productNames);
     console.log('🔢 productCounts:', productCounts);
