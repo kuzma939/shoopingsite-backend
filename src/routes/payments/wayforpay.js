@@ -33,18 +33,18 @@ router.post('/', async (req, res) => {
     const productNames = cartItems.map(i => i.name);
     const productCounts = cartItems.map(i => i.quantity.toString());
     const productPrices = cartItems.map(i => i.price.toFixed(2)); // також формат цін
-
     const signatureSource = [
-      merchantAccount,
-      merchantDomainName,
-      orderReference,
-      orderDate.toString(),
-      formattedAmount,
-      currency,
-      ...productNames,
-      ...productCounts,
-      ...productPrices,
-    ];
+        merchantAccount,
+        merchantDomainName,
+        orderReference,
+        orderDate.toString(),
+        formattedAmount,
+        currency,
+        productNames.join(';'),
+        productCounts.join(';'),
+        productPrices.join(';'),
+      ];
+      
 
     const signature = generateSignature(secretKey, signatureSource);
 
@@ -62,25 +62,27 @@ router.post('/', async (req, res) => {
     console.log('📐 signature source:', signatureSource.join(';'));
     console.log('🖊️ generated signature:', signature);
     await TempOrder.create({ orderId: orderReference, orderData: order });
-
     const html = `
-      <form method="POST" action="https://secure.wayforpay.com/pay">
-        <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
-        <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
-        <input type="hidden" name="orderReference" value="${orderReference}" />
-        <input type="hidden" name="orderDate" value="${orderDate}" />
-        <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="${currency}" />
-        ${productNames.map(name => `<input type="hidden" name="productName" value="${name}" />`).join('')}
-        ${productCounts.map(q => `<input type="hidden" name="productCount" value="${q}" />`).join('')}
-        ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-        <input type="hidden" name="language" value="UA" />
-        <input type="hidden" name="returnUrl" value="${resultUrl}" />
-        <input type="hidden" name="serviceUrl" value="${serverUrl}" />
-        <input type="hidden" name="merchantSignature" value="${signature}" />
-        <script>document.forms[0].submit();</script>
-      </form>
-    `;
+    <form method="POST" action="https://secure.wayforpay.com/pay">
+      <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
+      <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
+      <input type="hidden" name="orderReference" value="${orderReference}" />
+      <input type="hidden" name="orderDate" value="${orderDate}" />
+      <input type="hidden" name="amount" value="${formattedAmount}" />
+      <input type="hidden" name="currency" value="${currency}" />
+      
+      <input type="hidden" name="productName" value="${productNames.join(';')}" />
+      <input type="hidden" name="productCount" value="${productCounts.join(';')}" />
+      <input type="hidden" name="productPrice" value="${productPrices.join(';')}" />
+  
+      <input type="hidden" name="language" value="UA" />
+      <input type="hidden" name="returnUrl" value="${resultUrl}" />
+      <input type="hidden" name="serviceUrl" value="${serverUrl}" />
+      <input type="hidden" name="merchantSignature" value="${signature}" />
+      <script>document.forms[0].submit();</script>
+    </form>
+  `;
+  
 
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
