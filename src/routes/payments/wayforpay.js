@@ -54,8 +54,9 @@ router.post('/', async (req, res) => {
       });
     const signature = generateSignature(secretKey, signatureSource);
     console.log('🪙 typeof currency:', typeof currency); // має бути 'string'
-    console.log('💴 currency value:', currency);         // має бути 'UAH'
-    
+
+    console.log('💴 currency value (debug):', currency, '| from', __filename);
+
     console.log('🧾 merchantAccount:', merchantAccount);
     console.log('🌐 merchantDomainName:', merchantDomainName);
     console.log('🆔 orderReference:', orderReference);
@@ -66,8 +67,12 @@ router.post('/', async (req, res) => {
     console.log('📦 productNames:', productNames);
     console.log('🔢 productCounts:', productCounts);
     console.log('💲 productPrices:', productPrices);
-    
-    console.log('📐 signature source:', signatureSource.join(';'));
+    console.log('📐 DEBUG: signatureSource breakdown:');
+
+    signatureSource.forEach((val, i) => {
+        console.log(`🔢 signatureSource[${i}]:`, val);
+      });
+      
     console.log('🖊️ generated signature:', signature);
     await TempOrder.create({ orderId: orderReference, orderData: order });
     const html = `
@@ -82,8 +87,8 @@ router.post('/', async (req, res) => {
     ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
     ${productCounts.map(q => `<input type="hidden" name="productCount" value="${q}" />`).join('')}
     ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-    
-    <input type="hidden" name="language" value="${currency}"  />
+    <input type="hidden" name="language" value="UA" />
+
     <input type="hidden" name="returnUrl" value="${resultUrl}" />
     <input type="hidden" name="serviceUrl" value="${serverUrl}" />
     <input type="hidden" name="merchantSignature" value="${signature}" />
