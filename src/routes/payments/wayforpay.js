@@ -28,8 +28,8 @@ router.post('/', async (req, res) => {
     if (cartItems.length === 0) {
       return res.status(400).send('No items in cart');
     }
-
-    const productNames = cartItems.map(i => i.productId); // або name, якщо зберігаєш назви
+    const productNames = cartItems.map(i => i.name); 
+    //const productNames = cartItems.map(i => i.productId); // або name, якщо зберігаєш назви
     const productCounts = cartItems.map(i => i.quantity);
     const productPrices = cartItems.map(i => i.price); // обов'язково зберігай ціну
     const signatureSource = [
