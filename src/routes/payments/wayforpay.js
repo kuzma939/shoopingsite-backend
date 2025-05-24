@@ -26,12 +26,20 @@ router.post('/', async (req, res) => {
     if (cartItems.length === 0) return res.status(400).send('Cart is empty');
 
     // 🔒 Формат значень
-    const formattedAmount = Number(amount).toFixed(2);
-    const productNames = cartItems.map(i => String(i.name).trim());
-    const productCounts = cartItems.map(i => String(i.quantity));
-    const productPrices = cartItems.map(i =>
-        Number(String(i.price).replace(/[^\d.]/g, '')).toFixed(2)
-      );
+    // Очищення productPrices: видаляє 'грн', пробіли, коми
+const productPrices = cartItems.map(i =>
+    Number(String(i.price).replace(/[^\d.]/g, '')).toFixed(2)
+  );
+  
+  // Очищення назв товарів: видаляє 'грн', крапки, пробіли
+  const productNames = cartItems.map(i =>
+    String(i.name).replace(/грн/gi, '').trim()
+  );
+  
+  // Очищення суми: прибирає зайве, на випадок якщо передається з грн
+  const formattedAmount = Number(String(amount).replace(/[^\d.]/g, '')).toFixed(2);
+  const productCounts = cartItems.map(i => String(i.quantity));
+   
       
     const signatureSource = [
       merchantAccount,
