@@ -1,9 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import TempOrder from '../../models/TempOrder.js';
-import Order from '../../models/Order.js';
 import CartItem from '../../models/CartItem.js';
-import { sendClientConfirmation, sendAdminNotification } from '../../utils/mailer.js';
 
 const router = express.Router();
 
@@ -14,103 +12,72 @@ function generateSignature(secretKey, values) {
 router.post('/', async (req, res) => {
   try {
     const { amount, order, resultUrl, serverUrl } = req.body;
- 
-    if (order.currency && order.currency !== 'UAH') {
-        console.warn('❗️ Попередження: отримано валюту з фронту:', order.currency);
-      }
-      
-    const merchantAccount = process.env.WAYFORPAY_MERCHANT; // "latore_shop"
+
+    const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
-    const currency = 'UAH';
+    const currency = 'UAH'; // Жорстко задана валюта
 
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
 
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (cartItems.length === 0) return res.status(400).send('Cart is empty');
 
-
+    // 🔒 Формат значень
     const formattedAmount = Number(amount).toFixed(2);
+    const productNames = cartItems.map(i => String(i.name).trim());
+    const productCounts = cartItems.map(i => String(i.quantity));
+    const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
 
-    const productNames = cartItems.map(i => i.name);
-    const productCounts = cartItems.map(i => i.quantity.toString());
-    const productPrices = cartItems.map(i => i.price.toFixed(2)); 
     const signatureSource = [
-        merchantAccount,
-        merchantDomainName,
-        orderReference,
-        orderDate.toString(),
-        formattedAmount,
-        currency,
-        ...productNames,     
-        ...productCounts,   
-        ...productPrices    
-      ];
-     
-      if (currency !== 'UAH') {
-        throw new Error(`❌ Валюта має бути 'UAH', а не '${currency}'`);
-      }
-      signatureSource.forEach((val, i) => {
-        console.log(`🔢 signatureSource[${i}]:`, val);
-      });
+      merchantAccount,
+      merchantDomainName,
+      orderReference,
+      orderDate.toString(),
+      formattedAmount,
+      currency,
+      ...productNames,
+      ...productCounts,
+      ...productPrices,
+    ].map(v => String(v).trim()); // 🔐 Очищення пробілів і перетворення в рядки
+
+    console.log('📐 Стрічка підпису:', signatureSource.join(';'));
+
     const signature = generateSignature(secretKey, signatureSource);
-    console.log('🪙 typeof currency:', typeof currency); // має бути 'string'
-    console.log('📐 ПОВНИЙ рядок ПІДПИСУ (правильний):', signatureSource.map(String).join(';'));
+    console.log('✅ Підпис:', signature);
 
-console.log('🧠 currency value перед підписом:', currency);
-
-    
-    console.log('🧾 merchantAccount:', merchantAccount);
-    console.log('🌐 merchantDomainName:', merchantDomainName);
-    console.log('🆔 orderReference:', orderReference);
-    console.log('📅 orderDate:', orderDate);
-    console.log('💰 amount:', amount);
-    console.log('💴 currency:', currency);
-    
-    console.log('📦 productNames:', productNames);
-    console.log('🔢 productCounts:', productCounts);
-    console.log('💲 productPrices:', productPrices);
-    console.log('📐 DEBUG: signatureSource breakdown:');
-
-    signatureSource.forEach((val, i) => {
-        console.log(`🔢 signatureSource[${i}]:`, val);
-      });
-      
-    console.log('🖊️ generated signature:', signature);
     await TempOrder.create({ orderId: orderReference, orderData: order });
+
+    // 🔽 Генерація HTML-форми
     const html = `
-  <form method="POST" action="https://secure.wayforpay.com/pay">
-    <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
-    <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
-    <input type="hidden" name="orderReference" value="${orderReference}" />
-    <input type="hidden" name="orderDate" value="${orderDate}" />
-    <input type="hidden" name="amount" value="${formattedAmount}" />
-    <input type="hidden" name="currency" value="UAH" />
-    
-    ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
-    ${productCounts.map(q => `<input type="hidden" name="productCount" value="${q}" />`).join('')}
-    ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-    <input type="hidden" name="language" value="UA" />
-
-    <input type="hidden" name="returnUrl" value="${resultUrl}" />
-    <input type="hidden" name="serviceUrl" value="${serverUrl}" />
-    <input type="hidden" name="merchantSignature" value="${signature}" />
-    <script>document.forms[0].submit();</script>
-  </form>
-`;
-
-  
+      <form method="POST" action="https://secure.wayforpay.com/pay">
+        <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
+        <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
+        <input type="hidden" name="orderReference" value="${orderReference}" />
+        <input type="hidden" name="orderDate" value="${orderDate}" />
+        <input type="hidden" name="amount" value="${formattedAmount}" />
+        <input type="hidden" name="currency" value="${currency}" />
+        ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
+        ${productCounts.map(q => `<input type="hidden" name="productCount" value="${q}" />`).join('')}
+        ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
+        <input type="hidden" name="language" value="UA" />
+        <input type="hidden" name="returnUrl" value="${resultUrl}" />
+        <input type="hidden" name="serviceUrl" value="${serverUrl}" />
+        <input type="hidden" name="merchantSignature" value="${signature}" />
+        <script>document.forms[0].submit();</script>
+      </form>
+    `;
 
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
-
   } catch (err) {
     console.error('❌ WayForPay помилка:', err);
     res.status(500).send('WayForPay error');
   }
 });
+
 router.post('/callback', async (req, res) => {
     try {
       const secretKey = process.env.WAYFORPAY_SECRET;
