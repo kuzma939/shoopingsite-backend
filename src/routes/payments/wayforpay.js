@@ -10,19 +10,6 @@ const router = express.Router();
 function generateSignature(secretKey, values) {
   return crypto.createHmac('md5', secretKey).update(values.join(';')).digest('hex');
 }
-console.log('🧾 merchantAccount:', merchantAccount);
-console.log('🌐 merchantDomainName:', merchantDomainName);
-console.log('🆔 orderReference:', orderReference);
-console.log('📅 orderDate:', orderDate);
-console.log('💰 amount:', amount);
-console.log('💴 currency:', currency);
-
-console.log('📦 productNames:', productNames);
-console.log('🔢 productCounts:', productCounts);
-console.log('💲 productPrices:', productPrices);
-
-console.log('📐 signature source:', signatureSource.join(';'));
-console.log('🖊️ generated signature:', signature);
 
 router.post('/', async (req, res) => {
   try {
@@ -61,6 +48,19 @@ router.post('/', async (req, res) => {
 
     const signature = generateSignature(secretKey, signatureSource);
 
+    console.log('🧾 merchantAccount:', merchantAccount);
+    console.log('🌐 merchantDomainName:', merchantDomainName);
+    console.log('🆔 orderReference:', orderReference);
+    console.log('📅 orderDate:', orderDate);
+    console.log('💰 amount:', amount);
+    console.log('💴 currency:', currency);
+    
+    console.log('📦 productNames:', productNames);
+    console.log('🔢 productCounts:', productCounts);
+    console.log('💲 productPrices:', productPrices);
+    
+    console.log('📐 signature source:', signatureSource.join(';'));
+    console.log('🖊️ generated signature:', signature);
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
     const html = `
