@@ -12,39 +12,32 @@ function generateSignature(secretKey, values) {
 router.post('/', async (req, res) => {
   try {
     const { amount, order, resultUrl, serverUrl } = req.body;
-    console.log('🧪 Сира сума з фронту:', amount);
-    console.log('🧪 Тип суми:', typeof amount);
-    
+
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
-    const currency = 'UAH'; // Жорстко задана валюта
+    const currency = 'UAH'; // ВАЖЛИВО: тільки UAH
 
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
 
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
-    if (cartItems.length === 0) return res.status(400).send('Cart is empty');
+    if (!cartItems.length) return res.status(400).send('Cart is empty');
 
-    // 🔒 Формат значень
-    // Очищення productPrices: видаляє 'грн', пробіли, коми
-const productPrices = cartItems.map(i =>
-    Number(String(i.price).replace(/[^\d.]/g, '')).toFixed(2)
-  );
-  
-  // Очищення назв товарів: видаляє 'грн', крапки, пробіли
-  const productNames = cartItems.map(i =>
-    String(i.name).replace(/грн/gi, '').trim()
-  );
-  
-  // Очищення суми: прибирає зайве, на випадок якщо передається з грн
-  const rawAmount = typeof amount === 'string' ? amount.replace(/[^\d.]/g, '') : amount;
-const formattedAmount = Number(rawAmount).toFixed(2);
+    // 🔹 Очищення та форматування
+    const formattedAmount = Number(amount).toFixed(2);
+    const productNames = cartItems.map(i =>
+      String(i.name).replace(/грн/gi, '').trim()
+    );
+    const productCounts = cartItems.map(i =>
+      String(i.quantity)
+    );
+    const productPrices = cartItems.map(i =>
+      Number(i.price).toFixed(2)
+    );
 
-  const productCounts = cartItems.map(i => String(i.quantity));
-   
-   
+    // 🔐 Формування підпису
     const signatureSource = [
       merchantAccount,
       merchantDomainName,
@@ -54,17 +47,17 @@ const formattedAmount = Number(rawAmount).toFixed(2);
       currency,
       ...productNames,
       ...productCounts,
-      ...productPrices,
-    ].map(v => String(v).trim()); // 🔐 Очищення пробілів і перетворення в рядки
+      ...productPrices
+    ].map(v => String(v).trim());
 
     console.log('📐 Стрічка підпису:', signatureSource.join(';'));
-
     const signature = generateSignature(secretKey, signatureSource);
     console.log('✅ Підпис:', signature);
 
+    // ⏳ Зберегти тимчасове замовлення
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
-    // 🔽 Генерація HTML-форми
+    // 🧾 Генерація HTML-форми
     const html = `
       <form method="POST" action="https://secure.wayforpay.com/pay">
         <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
@@ -74,7 +67,7 @@ const formattedAmount = Number(rawAmount).toFixed(2);
         <input type="hidden" name="amount" value="${formattedAmount}" />
         <input type="hidden" name="currency" value="${currency}" />
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
-        ${productCounts.map(q => `<input type="hidden" name="productCount" value="${q}" />`).join('')}
+        ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
         <input type="hidden" name="language" value="UA" />
         <input type="hidden" name="returnUrl" value="${resultUrl}" />
@@ -91,6 +84,8 @@ const formattedAmount = Number(rawAmount).toFixed(2);
     res.status(500).send('WayForPay error');
   }
 });
+
+
 {/*}
 router.post('/callback', async (req, res) => {
     try {
