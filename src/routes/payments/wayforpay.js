@@ -27,37 +27,36 @@ router.post('/', async (req, res) => {
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (cartItems.length === 0) return res.status(400).send('Cart is empty');
 
-    // ⚠️ ГЕНЕРУЙ СПИСКИ ЯК МАСИВИ
-    const productNames = cartItems.map(i => i.name || i.productId);
-    const productCounts = cartItems.map(i => i.quantity.toString());
-    const productPrices = cartItems.map(i => i.price.toString());
+    // 🔎 Форматуємо суму точно у "1200.00"
+    const formattedAmount = Number(amount).toFixed(2);
 
-    // ✅ SIGNATURE ARRAY
+    const productNames = cartItems.map(i => i.name);
+    const productCounts = cartItems.map(i => i.quantity.toString());
+    const productPrices = cartItems.map(i => i.price.toFixed(2)); // також формат цін
+
     const signatureSource = [
       merchantAccount,
       merchantDomainName,
       orderReference,
       orderDate.toString(),
-      amount.toString(),
+      formattedAmount,
       currency,
       ...productNames,
       ...productCounts,
-      ...productPrices
+      ...productPrices,
     ];
 
     const signature = generateSignature(secretKey, signatureSource);
 
-    // 💾 Тимчасово зберігаємо
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
-    // ✅ СТВОРЮЄМО ФОРМУ
     const html = `
       <form method="POST" action="https://secure.wayforpay.com/pay">
         <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
         <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
         <input type="hidden" name="orderReference" value="${orderReference}" />
         <input type="hidden" name="orderDate" value="${orderDate}" />
-        <input type="hidden" name="amount" value="${amount}" />
+        <input type="hidden" name="amount" value="${formattedAmount}" />
         <input type="hidden" name="currency" value="${currency}" />
         ${productNames.map(name => `<input type="hidden" name="productName" value="${name}" />`).join('')}
         ${productCounts.map(q => `<input type="hidden" name="productCount" value="${q}" />`).join('')}
