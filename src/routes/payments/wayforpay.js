@@ -39,7 +39,7 @@ router.post('/', async (req, res) => {
         orderReference,
         orderDate.toString(),
         formattedAmount,
-        currency,
+        'UAH',
         ...productNames,     
         ...productCounts,   
         ...productPrices    
@@ -54,7 +54,7 @@ router.post('/', async (req, res) => {
     console.log('🆔 orderReference:', orderReference);
     console.log('📅 orderDate:', orderDate);
     console.log('💰 amount:', amount);
-    console.log('💴 currency:', currency);
+    console.log('💴 UAH:', UAH);
     
     console.log('📦 productNames:', productNames);
     console.log('🔢 productCounts:', productCounts);
@@ -70,13 +70,13 @@ router.post('/', async (req, res) => {
     <input type="hidden" name="orderReference" value="${orderReference}" />
     <input type="hidden" name="orderDate" value="${orderDate}" />
     <input type="hidden" name="amount" value="${formattedAmount}" />
-    <input type="hidden" name="currency" value="${currency}" />
+    <input type="hidden" name="currency" value="UAH" />
     
     ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
     ${productCounts.map(q => `<input type="hidden" name="productCount" value="${q}" />`).join('')}
     ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
     
-    <input type="hidden" name="language" value="UA" />
+    <input type="hidden" name="language" value="UAH" />
     <input type="hidden" name="returnUrl" value="${resultUrl}" />
     <input type="hidden" name="serviceUrl" value="${serverUrl}" />
     <input type="hidden" name="merchantSignature" value="${signature}" />
