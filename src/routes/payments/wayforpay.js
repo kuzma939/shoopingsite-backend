@@ -59,7 +59,8 @@ const formattedAmount = '100.00';
       });
     const signature = generateSignature(secretKey, signatureSource);
     console.log('🪙 typeof currency:', typeof currency); // має бути 'string'
-    console.log('📐 FULL signature string:', signatureSource.join(';'));
+    console.log('📐 ПОВНИЙ рядок підпису (debug):', signatureSource.join(';'));
+console.log('🧠 currency value перед підписом:', currency);
 
     
     console.log('🧾 merchantAccount:', merchantAccount);
