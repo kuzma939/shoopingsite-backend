@@ -14,7 +14,11 @@ function generateSignature(secretKey, values) {
 router.post('/', async (req, res) => {
   try {
     const { amount, order, resultUrl, serverUrl } = req.body;
-
+ 
+    if (order.currency && order.currency !== 'UAH') {
+        console.warn('❗️ Попередження: отримано валюту з фронту:', order.currency);
+      }
+      
     const merchantAccount = process.env.WAYFORPAY_MERCHANT; // "latore_shop"
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
@@ -44,8 +48,7 @@ router.post('/', async (req, res) => {
         ...productCounts,   
         ...productPrices    
       ];
-      
-      
+     
       if (currency !== 'UAH') {
         throw new Error(`❌ Валюта має бути 'UAH', а не '${currency}'`);
       }
@@ -54,7 +57,8 @@ router.post('/', async (req, res) => {
       });
     const signature = generateSignature(secretKey, signatureSource);
     console.log('🪙 typeof currency:', typeof currency); // має бути 'string'
-    console.log('📐 ПОВНИЙ рядок підпису (debug):', signatureSource.join(';'));
+    console.log('📐 ПОВНИЙ рядок ПІДПИСУ (правильний):', signatureSource.map(String).join(';'));
+
 console.log('🧠 currency value перед підписом:', currency);
 
     
