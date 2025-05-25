@@ -69,7 +69,11 @@ router.post('/', async (req, res) => {
     const signature = generateSignature(secretKey, signatureSource);
     console.log('📐 Стрічка підпису:', signatureSource.join(';'));
     console.log('✅ Підпис:', signature);
-
+    console.log('🧾 productNames:', productNames);
+    console.log('🧾 productCounts:', productCounts);
+    console.log('🧾 productPrices:', productPrices);
+    
+    
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
     const html = `
