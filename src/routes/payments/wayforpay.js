@@ -33,8 +33,9 @@ router.post('/', async (req, res) => {
 
     const productNames = cartItems.map(i => String(i.name || '').trim()
       .replace(/грн/gi, '')
-      .replace(/['"]/g, '')
+      .replace(/['"«»]/g, '')
       .replace(/'/g, '’'));
+     
 
     const productCounts = cartItems.map(i => String(i.quantity));
     const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
