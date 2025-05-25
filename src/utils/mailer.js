@@ -18,7 +18,7 @@ export const sendClientConfirmation = async (order) => {
     subject: 'Підтвердження замовлення',
     html: `
       <p>Вітаємо, ${order.firstName}!</p>
-      <p>Дякуємо за замовлення на суму <strong>${order.total} грн</strong>.</p>
+      <p>Дякуємо за замовлення на суму <strong>${order.total} UAH</strong>.</p>
       <p>Наш менеджер звʼяжеться з вами найближчим часом.</p>
     `,
   });
@@ -38,7 +38,7 @@ export const sendAdminNotification = async (order) => {
       <p><strong>Місто:</strong> ${order.city}</p>
       <p><strong>Відділення:</strong> ${order.warehouse || '—'}</p>
       <p><strong>Коментар:</strong> ${order.comment}</p>
-      <p><strong>Сума:</strong> ${order.total} грн</p>
+      <p><strong>Сума:</strong> ${order.total} UAH</p>
     `,
   });
 };
