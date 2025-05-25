@@ -12,6 +12,7 @@ function generateSignature(secretKey, values) {
 router.post('/', async (req, res) => {
   try {
     const { amount, order, resultUrl, serverUrl } = req.body;
+    console.log('🧾 ORDER from frontend:', order);
 
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
@@ -27,12 +28,19 @@ router.post('/', async (req, res) => {
 
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (!cartItems.length) return res.status(400).send('Cart is empty');
+    console.log('🧾 CART ITEMS:', cartItems.map(item => item.name || item.productName || item));
 
     // 🔹 Очищення та форматування
     const formattedAmount = Number(amount).toFixed(2);
     const productNames = cartItems.map(i =>
-      String(i.name).replace(/грн/gi, '').trim()
-    );
+        String(i.name)
+          .replace(/грн/gi, '')
+          .replace(/'/g, "’")   // ← заміна одинарних лапок
+          .replace(/"/g, "")  
+          .replace(/['"]/g, '')  // ← прибрати подвійні лапки, якщо є
+          .trim()
+      );
+     
     const productCounts = cartItems.map(i =>
       String(i.quantity)
     );
