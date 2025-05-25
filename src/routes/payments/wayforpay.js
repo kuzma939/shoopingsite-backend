@@ -31,7 +31,12 @@ router.post('/', async (req, res) => {
     console.log('🧾 CART ITEMS:', cartItems.map(item => item.name || item.productName || item));
 
     // 🔹 Очищення та форматування
-    const formattedAmount = Number(amount).toFixed(2);
+    const cleanAmount = typeof amount === 'string'
+  ? amount.replace(/[^\d.]/g, '') // прибирає все крім цифр і крапки
+  : amount;
+
+const formattedAmount = Number(cleanAmount).toFixed(2);
+
     const productNames = cartItems.map(i =>
         String(i.name)
           .replace(/грн/gi, '')
