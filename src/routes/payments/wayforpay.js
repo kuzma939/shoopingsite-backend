@@ -30,13 +30,13 @@ router.post('/', async (req, res) => {
       ? amount.replace(/\s/g, '').replace(/[^\d.]/g, '')
       : amount;
     const formattedAmount = Number(cleanAmount).toFixed(2);
-
-    const productNames = cartItems.map(i => String(i.name || '').trim()
-      .replace(/грн/gi, '')
-      .replace(/['"«»]/g, '')
-      .replace(/'/g, '’'));
-     
-
+    const productNames = cartItems.map(i =>
+        String(i.name || '')
+          .replace(/['"«»]/g, '')   // ← видалити лапки
+          .replace(/грн|₴/gi, '')   // ← валюту
+          .trim()
+      );
+      
     const productCounts = cartItems.map(i => String(i.quantity));
     const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
 
