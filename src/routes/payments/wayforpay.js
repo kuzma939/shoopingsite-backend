@@ -25,8 +25,8 @@ router.post('/', async (req, res) => {
       }
       
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
+    const cartItems = await CartItem.find({ sessionId: order.sessionId }).populate('productId');
 
-    const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (!cartItems.length) return res.status(400).send('Cart is empty');
     console.log('🧾 CART ITEMS:', cartItems.map(item => item.name || item.productName || item));
 
