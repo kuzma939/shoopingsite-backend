@@ -4,10 +4,11 @@ import TempOrder from '../../models/TempOrder.js';
 import CartItem from '../../models/CartItem.js';
 
 const router = express.Router();
-
 function generateSignature(secretKey, values) {
-  return crypto.createHmac('md5', secretKey).update(values.join(';')).digest('hex');
-}
+    const dataString = values.join(';') + ';' + secretKey;
+    return crypto.createHash('md5').update(dataString).digest('hex');
+  }
+
 
 router.post('/', async (req, res) => {
   try {
