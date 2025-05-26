@@ -74,7 +74,8 @@ router.post('/', async (req, res) => {
     console.log('🧾 productCounts:', productCounts);
     console.log('🧾 productPrices:', productPrices);
     
-    
+    console.log('🔎 Original cart names from DB:', cartItems.map(i => i.name));
+
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
     const html = `
