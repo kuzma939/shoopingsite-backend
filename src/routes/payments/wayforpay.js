@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
-    const currency = 'UAH';
+    
 
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
@@ -61,12 +61,16 @@ router.post('/', async (req, res) => {
       orderReference,
       String(orderDate),
       formattedAmount,
-      currency,
+      UAH,
       ...productNames,
       ...productCounts,
       ...productPrices,
     ];
-
+    console.log('🔍 DEBUG signatureSource elements:');
+    signatureSource.forEach((v, i) => {
+      console.log(`${i + 1}.`, JSON.stringify(v));
+    });
+    
     const signature = generateSignature(secretKey, signatureSource);
     console.log('📐 Стрічка підпису:', signatureSource.join(';'));
     console.log('✅ Підпис:', signature);
