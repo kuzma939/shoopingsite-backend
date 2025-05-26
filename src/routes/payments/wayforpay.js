@@ -4,11 +4,11 @@ import TempOrder from '../../models/TempOrder.js';
 import CartItem from '../../models/CartItem.js';
 
 const router = express.Router();
-function generateSignature(secretKey, values) {
-    const dataString = values.join(';') + ';' + secretKey;
-    return crypto.createHash('md5').update(dataString).digest('hex');
-  }
 
+function generateSignature(secretKey, values) {
+  const dataString = values.join(';');
+  return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
+}
 
 router.post('/', async (req, res) => {
   try {
@@ -20,24 +20,24 @@ router.post('/', async (req, res) => {
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
-    
 
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
+
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (!cartItems.length) return res.status(400).send('Cart is empty');
-    console.log('🧾 CART ITEMS:', cartItems.map(item => item.name || item.productName || item));
 
     const cleanAmount = typeof amount === 'string'
       ? amount.replace(/\s/g, '').replace(/[^\d.]/g, '')
       : amount;
     const formattedAmount = Number(cleanAmount).toFixed(2);
+
     const productNames = cartItems.map(i =>
-        String(i.name || '')
-          .replace(/['"«»]/g, '')   // ← видалити лапки
-          .replace(/грн|₴/gi, '')   // ← валюту
-          .trim()
-      );
-      
+      String(i.name || '')
+        .replace(/['"«»]/g, '')
+        .replace(/грн|₴/gi, '')
+        .trim()
+    );
+
     const productCounts = cartItems.map(i => String(i.quantity));
     const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
 
@@ -66,19 +66,15 @@ router.post('/', async (req, res) => {
       ...productCounts,
       ...productPrices,
     ];
+
     console.log('🔍 DEBUG signatureSource elements:');
     signatureSource.forEach((v, i) => {
       console.log(`${i + 1}.`, JSON.stringify(v));
     });
-    
+
     const signature = generateSignature(secretKey, signatureSource);
     console.log('📐 Стрічка підпису:', signatureSource.join(';'));
     console.log('✅ Підпис:', signature);
-    console.log('🧾 productNames:', productNames);
-    console.log('🧾 productCounts:', productCounts);
-    console.log('🧾 productPrices:', productPrices);
-    
-    console.log('🔎 Original cart names from DB:', cartItems.map(i => i.name));
 
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
@@ -94,6 +90,7 @@ router.post('/', async (req, res) => {
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
+        
         <input type="hidden" name="language" value="UA" />
         <input type="hidden" name="returnUrl" value="${resultUrl}" />
         <input type="hidden" name="serviceUrl" value="${serverUrl}" />
