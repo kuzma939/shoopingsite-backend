@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
       orderReference,
       String(orderDate),
       formattedAmount,
-      UAH,
+      'UAH',
       ...productNames,
       ...productCounts,
       ...productPrices,
