@@ -5,15 +5,21 @@ import CartItem from '../../models/CartItem.js';
 
 const router = express.Router();
 
+// HMAC MD5 генерація підпису
 function generateSignature(secretKey, values) {
   const dataString = values.join(';');
+  console.log('📐 Стрічка підпису:', dataString);
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
 
 router.post('/', async (req, res) => {
   try {
     const { amount, order, resultUrl, serverUrl } = req.body;
-    console.log('🧾 ORDER from frontend:', order);
+
+    console.log('🧾 ORDER з фронтенду:', order);
+    console.log('💰 Сума:', amount);
+    console.log('🔁 returnUrl:', resultUrl);
+    console.log('📡 serviceUrl:', serverUrl);
 
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
@@ -21,25 +27,29 @@ router.post('/', async (req, res) => {
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
 
-    if (!order.sessionId) return res.status(400).send('Missing sessionId');
+    if (!order.sessionId) {
+      console.error('❌ Відсутній sessionId');
+      return res.status(400).send('Missing sessionId');
+    }
 
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
-    if (!cartItems.length) return res.status(400).send('Cart is empty');
+    if (!cartItems.length) {
+      console.error('❌ Кошик порожній для sessionId:', order.sessionId);
+      return res.status(400).send('Cart is empty');
+    }
 
-    const cleanAmount = typeof amount === 'string'
-      ? amount.replace(/\s/g, '').replace(/[^\d.]/g, '')
-      : amount;
-    const formattedAmount = Number(cleanAmount).toFixed(2);
-    const cleanText = (text) =>
-      String(text || '')
-        .replace(/['"«»]/g, '')       // лапки
-        .replace(/грн|₴|\$|\s+грн/gi, '') // валюта + пробіл перед нею
-        .replace(/[\(\)]/g, '')       // дужки
-        .trim();
-        const productNames = cartItems.map(i => cleanText(i.name));
-    
+    console.log('🛒 Кошик:', cartItems);
+
+    const formattedAmount = Number(amount).toFixed(2);
+    console.log('💳 Сума до підпису (formattedAmount):', formattedAmount);
+
+    const productNames = cartItems.map(i => i.name || i.productName || '');
     const productCounts = cartItems.map(i => String(i.quantity));
     const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
+
+    console.log('📝 productNames:', productNames);
+    console.log('🔢 productCounts:', productCounts);
+    console.log('💲 productPrices:', productPrices);
 
     if (
       !productNames.length ||
@@ -47,10 +57,10 @@ router.post('/', async (req, res) => {
       productNames.length !== productCounts.length ||
       productNames.length !== productPrices.length
     ) {
-      console.error('❌ Дані невалідні:', {
+      console.error('❌ Невалідні дані кошика:', {
         productNames,
         productCounts,
-        productPrices
+        productPrices,
       });
       return res.status(400).send('Invalid cart data');
     }
@@ -67,15 +77,16 @@ router.post('/', async (req, res) => {
       ...productPrices,
     ];
 
-    console.log('🔍 DEBUG signatureSource elements:');
+    // Вивід усіх параметрів підпису поелементно
+    console.log('🔍 Елементи підпису DEBUG:');
     signatureSource.forEach((v, i) => {
       console.log(`${i + 1}.`, JSON.stringify(v));
     });
 
     const signature = generateSignature(secretKey, signatureSource);
-    console.log('📐 Стрічка підпису:', signatureSource.join(';'));
-    console.log('✅ Підпис:', signature);
+    console.log('✅ Підпис HMAC MD5:', signature);
 
+    // Зберігаємо тимчасове замовлення
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
     const html = `
@@ -86,11 +97,9 @@ router.post('/', async (req, res) => {
         <input type="hidden" name="orderDate" value="${orderDate}" />
         <input type="hidden" name="amount" value="${formattedAmount}" />
         <input type="hidden" name="currency" value="UAH" />
-
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-        
         <input type="hidden" name="language" value="UA" />
         <input type="hidden" name="returnUrl" value="${resultUrl}" />
         <input type="hidden" name="serviceUrl" value="${serverUrl}" />
@@ -99,10 +108,12 @@ router.post('/', async (req, res) => {
       </form>
     `;
 
+    console.log('📤 HTML-форма згенерована. Відправка форми...');
+
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
   } catch (err) {
-    console.error('❌ WayForPay помилка:', err);
+    console.error('❌ Внутрішня помилка WayForPay:', err);
     res.status(500).send('WayForPay error');
   }
 });
