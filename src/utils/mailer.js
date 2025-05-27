@@ -71,8 +71,8 @@ export const sendAdminNotification = async (order) => {
           ${productsHtml}
         </tbody>
       </table>
+<p><strong>Сума:</strong> ${String(order.total).replace(/грн|₴|UAH/gi, '').trim()} UAH</p>
 
-      <p><strong>Сума:</strong> ${order.total}UAH</p>
     `,
   });
 };
