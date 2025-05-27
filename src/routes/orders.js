@@ -10,6 +10,17 @@ router.post('/', async (req, res) => {
     const order = req.body;
     console.log('📦 Отримано замовлення:', order);
 
+    // ⬇️ Отримуємо товари з CartItem
+    const cartItems = await CartItem.find({ sessionId: order.sessionId });
+    order.items = cartItems.map(item => ({
+      name: item.name,
+      productId: item.productId,
+      color: item.color,
+      size: item.size,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+
     const savedOrder = await Order.create(order);
     console.log('✅ Замовлення збережено:', savedOrder);
 
