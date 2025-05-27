@@ -34,7 +34,7 @@ export const sendAdminNotification = async (order, cartItems) => {
         <td>${item.color}</td>
         <td>${item.size}</td>
         <td>${item.quantity}</td>
-        <td>${item.price} грн</td>
+        <td>${item.price} UAH</td>
       </tr>
     `).join('');
 
