@@ -12,6 +12,7 @@ router.post('/', async (req, res) => {
 
     // ⬇️ Отримуємо товари з CartItem
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
+
     order.items = cartItems.map(item => ({
       name: item.name,
       productId: item.productId,
@@ -27,9 +28,9 @@ router.post('/', async (req, res) => {
     // ⬇️ Надіслати листи
     if (order.paymentMethod === 'no-payment') {
       await sendClientConfirmation(order);
-      await sendAdminNotification(order);
+      await sendAdminNotification(order, cartItems); // ✅ Виправлення тут
     }
-    
+
     // 🧹 Очистити корзину після замовлення
     if (order.sessionId) {
       await CartItem.deleteMany({ sessionId: order.sessionId });
