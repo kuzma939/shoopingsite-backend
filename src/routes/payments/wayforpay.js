@@ -30,14 +30,14 @@ router.post('/', async (req, res) => {
       ? amount.replace(/\s/g, '').replace(/[^\d.]/g, '')
       : amount;
     const formattedAmount = Number(cleanAmount).toFixed(2);
-
-    const productNames = cartItems.map(i =>
-      String(i.name || '')
-        .replace(/['"«»]/g, '')
-        .replace(/грн|₴/gi, '')
-        .trim()
-    );
-
+    const cleanText = (text) =>
+      String(text || '')
+        .replace(/['"«»]/g, '')       // лапки
+        .replace(/грн|₴|\$|\s+грн/gi, '') // валюта + пробіл перед нею
+        .replace(/[\(\)]/g, '')       // дужки
+        .trim();
+        const productNames = cartItems.map(i => cleanText(i.name));
+    
     const productCounts = cartItems.map(i => String(i.quantity));
     const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
 
@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
       orderReference,
       String(orderDate),
       formattedAmount,
-      '$',
+      'UAH',
       ...productNames,
       ...productCounts,
       ...productPrices,
@@ -85,7 +85,7 @@ router.post('/', async (req, res) => {
         <input type="hidden" name="orderReference" value="${orderReference}" />
         <input type="hidden" name="orderDate" value="${orderDate}" />
         <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="$" />
+        <input type="hidden" name="currency" value="UAH" />
 
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
