@@ -43,9 +43,13 @@ router.post('/', async (req, res) => {
     const rawAmount = typeof amount === 'string' ? amount.match(/[\d.]+/g)?.[0] || '0' : amount;
     const formattedAmount = Number(rawAmount).toFixed(2);
     console.log('💳 Сума до підпису (formattedAmount):', formattedAmount);
-    const productNames = cartItems.map(i =>
-      String(i.name || i.productName || i.назва || '').replace(/грн|₴/gi, '').trim()
-    );
+    const productNames = cartItems.map(i => {
+      let name = String(i.name || '').toLowerCase();
+      name = name.replace(/(грн|₴|uah)/gi, '');
+      name = name.replace(/[^\p{L}\p{N} _.,-]/gu, ''); // Видаляє неалфавітні символи
+      name = name.replace(/\s+/g, ' ').trim();
+      return name;
+    });
     
     const productPrices = cartItems.map(i =>
       Number(i.price || i.ціна).toFixed(2)
