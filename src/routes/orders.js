@@ -9,7 +9,7 @@ router.post('/', async (req, res) => {
   try {
     const order = req.body;
     console.log('📦 Отримано замовлення:', order);
-
+    console.log('🧪 sessionId:', order.sessionId);
     // ⬇️ Отримуємо товари з CartItem
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
 
