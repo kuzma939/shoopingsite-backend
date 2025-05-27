@@ -43,11 +43,15 @@ router.post('/', async (req, res) => {
     const rawAmount = typeof amount === 'string' ? amount.match(/[\d.]+/g)?.[0] || '0' : amount;
     const formattedAmount = Number(rawAmount).toFixed(2);
     console.log('💳 Сума до підпису (formattedAmount):', formattedAmount);
-
-    const productNames = cartItems.map(i => String(i.name || i.productName || '').trim());
-    const productCounts = cartItems.map(i => String(i.quantity));
-    const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
-
+    const productNames = cartItems.map(i =>
+      String(i.name || i.productName || i.назва || '').replace(/грн|₴/gi, '').trim()
+    );
+    
+    const productPrices = cartItems.map(i =>
+      Number(i.price || i.ціна).toFixed(2)
+    );
+   const productCounts = cartItems.map(i => String(i.quantity));
+  
     console.log('📝 productNames:', productNames);
     console.log('🔢 productCounts:', productCounts);
     console.log('💲 productPrices:', productPrices);

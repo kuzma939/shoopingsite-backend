@@ -7,7 +7,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.GMAIL_PASS,
   },
   tls: {
-    rejectUnauthorized: false, // ⬅️ Додаємо це
+    rejectUnauthorized: false,
   }
 });
 
@@ -23,22 +23,20 @@ export const sendClientConfirmation = async (order) => {
     `,
   });
 };
-export const sendAdminNotification = async (order) => {
-  const productsHtml = order.items
-    .map(
-      (item, index) => `
-        <tr>
-          <td>${index + 1}</td>
-          <td>${item.name}</td>
-          <td>${item.productId}</td>
-          <td>${item.color}</td>
-          <td>${item.size}</td>
-          <td>${item.quantity}</td>
-          <td>${item.price} грн</td>
-        </tr>
-      `
-    )
-    .join('');
+
+export const sendAdminNotification = async (order, cartItems) => {
+  const productsHtml = cartItems
+    .map((item, index) => `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${item.name}</td>
+        <td>${item.productId}</td>
+        <td>${item.color}</td>
+        <td>${item.size}</td>
+        <td>${item.quantity}</td>
+        <td>${item.price} грн</td>
+      </tr>
+    `).join('');
 
   await transporter.sendMail({
     from: `"Магазин 👗" <${process.env.GMAIL_USER}>`,
@@ -71,8 +69,8 @@ export const sendAdminNotification = async (order) => {
           ${productsHtml}
         </tbody>
       </table>
-<p><strong>Сума:</strong> ${String(order.total).replace(/грн|₴|UAH/gi, '').trim()} UAH</p>
 
+      <p><strong>Сума:</strong> ${String(order.total).replace(/грн|₴|UAH/gi, '').trim()} UAH</p>
     `,
   });
 };
