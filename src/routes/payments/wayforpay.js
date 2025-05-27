@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
       orderReference,
       String(orderDate),
       formattedAmount,
-      'UAH',
+      '$',
       ...productNames,
       ...productCounts,
       ...productPrices,
@@ -85,7 +85,7 @@ router.post('/', async (req, res) => {
         <input type="hidden" name="orderReference" value="${orderReference}" />
         <input type="hidden" name="orderDate" value="${orderDate}" />
         <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="UAH" />
+        <input type="hidden" name="currency" value="$" />
 
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
