@@ -30,12 +30,12 @@ router.post('/', async (req, res) => {
       await sendClientConfirmation(order);
       await sendAdminNotification(order, cartItems); // ✅ Виправлення тут
     }
+// 🧹 Очистити корзину тільки якщо це замовлення без оплати
+if (order.paymentMethod === 'no-payment' && order.sessionId) {
+  await CartItem.deleteMany({ sessionId: order.sessionId });
+  console.log('🧹 Корзина очищена для sessionId:', order.sessionId);
+}
 
-    // 🧹 Очистити корзину після замовлення
-    if (order.sessionId) {
-      await CartItem.deleteMany({ sessionId: order.sessionId });
-      console.log('🧹 Корзина очищена для sessionId:', order.sessionId);
-    }
 
     res.status(201).json(savedOrder);
   } catch (error) {
