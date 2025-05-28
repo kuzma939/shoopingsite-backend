@@ -15,15 +15,12 @@ router.post('/', async (req, res) => {
   try {
     const { amount, order, resultUrl, serverUrl } = req.body;
 
-    console.log('🧾 ORDER з фронтенду:', order);
-    console.log('💰 Сума (вхідна):', amount);
-
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
-    const currency = 'UAH'; // 🔒 жорстко задано
+    const currency = 'UAH';
 
     if (!order.sessionId) {
       return res.status(400).send('Missing sessionId');
@@ -34,10 +31,15 @@ router.post('/', async (req, res) => {
       return res.status(400).send('Cart is empty');
     }
 
-    const rawAmount = typeof amount === 'string' ? amount.match(/[\d.]+/g)?.[0] || '0' : amount;
-    const formattedAmount = Number(rawAmount).toFixed(2); // 🔒 без локалізації
+    // 🧼 Очищення суми від пробілів, ₴, грн, коми
+    const cleanAmount = typeof amount === 'string'
+      ? amount.replace(/[^\d.,]/g, '').replace(/\s/g, '').replace(',', '.')
+      : amount;
 
-    const productNames = cartItems.map(i =>
+    const formattedAmount = Number(cleanAmount).toFixed(2);
+
+    // 🧹 Назви, ціни, кількості
+    const productNamesArray = cartItems.map(i =>
       String(i.name || i.назва || '')
         .replace(/(грн|₴|uah)/gi, '')
         .replace(/[^\p{L}\p{N} _.,-]/gu, '')
@@ -45,10 +47,20 @@ router.post('/', async (req, res) => {
         .trim()
     );
 
-    const productCounts = cartItems.map(i => String(i.quantity));
-    const productPrices = cartItems.map(i =>
-      Number(String(i.price || i.ціна || '').replace(/[^\d.]/g, '')).toFixed(2)
+    const productCountsArray = cartItems.map(i => String(i.quantity));
+
+    const productPricesArray = cartItems.map(i =>
+      Number(
+        String(i.price || i.ціна || '')
+          .replace(/(грн|₴|uah)/gi, '')
+          .replace(/[^\d.]/g, '')
+      ).toFixed(2)
     );
+
+    // 🔗 Для підпису — рядки через ;
+    const productNames = productNamesArray.join(';');
+    const productCounts = productCountsArray.join(';');
+    const productPrices = productPricesArray.join(';');
 
     const signatureSource = [
       merchantAccount,
@@ -57,21 +69,27 @@ router.post('/', async (req, res) => {
       String(orderDate),
       formattedAmount,
       currency,
-      ...productNames,
-      ...productCounts,
-      ...productPrices,
+      productNames,
+      productCounts,
+      productPrices
     ];
 
+    // 🕵️‍♀️ Логи для діагностики
     console.log('🔍 Елементи підпису DEBUG:');
-    signatureSource.forEach((v, i) => {
-      console.log(`${i + 1}.`, JSON.stringify(v));
+    signatureSource.forEach((val, i) => {
+      console.log(`${i + 1}.`, JSON.stringify(val));
+      if (/грн|uah|₴/i.test(val)) {
+        console.warn('❗️⚠️ УВАГА! У підпис просочився символ валюти:', val);
+      }
     });
 
     const signature = generateSignature(secretKey, signatureSource);
     console.log('✅ Підпис HMAC MD5:', signature);
 
+    // 💾 Зберігаємо тимчасове замовлення
     await TempOrder.create({ orderId: orderReference, orderData: order });
 
+    // 🧾 HTML форма WayForPay
     const html = `
       <form method="POST" action="https://secure.wayforpay.com/pay">
         <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
@@ -80,9 +98,9 @@ router.post('/', async (req, res) => {
         <input type="hidden" name="orderDate" value="${orderDate}" />
         <input type="hidden" name="amount" value="${formattedAmount}" />
         <input type="hidden" name="currency" value="${currency}" />
-        ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
-        ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
-        ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
+        <input type="hidden" name="productName" value="${productNames}" />
+        <input type="hidden" name="productCount" value="${productCounts}" />
+        <input type="hidden" name="productPrice" value="${productPrices}" />
         <input type="hidden" name="language" value="UA" />
         <input type="hidden" name="returnUrl" value="${resultUrl}" />
         <input type="hidden" name="serviceUrl" value="${serverUrl}" />

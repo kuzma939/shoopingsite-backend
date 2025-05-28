@@ -1,30 +1,20 @@
 import os from 'os';
 
-const locale = Intl.NumberFormat().resolvedOptions().locale;
-const amount = 1234.56;
-const currency = new Intl.NumberFormat(locale, { style: 'currency', currency: 'UAH' }).format(amount);
+// Це значення з фронтенду
+const raw = '1 234,56 грн';
 
-console.log('🌍 ОС мова:', os.userInfo().username);
-console.log('🌐 Intl.locale:', locale);
-console.log('💸 Валюта:', currency);
+// Очищення
+const numericOnly = raw.replace(/[^\d.,]/g, ''); // залишає цифри, крапку і кому
+console.log('🔹 Numeric only (до normalize):', numericOnly);
 
-const process = require('process');
+// Нормалізація
+let cleaned = numericOnly.replace(/\s/g, '').replace(',', '.');
+console.log('🧼 Cleaned number string:', cleaned);
 
-// Фіксовані значення, як у підписі
-const signatureParts = [
-  'latore_shop',
-  'latore.shop',
-  'test-order-id',
-  Math.floor(Date.now() / 1000).toString(),
-  '1950.00',
-  'UAH', // ← перевіряємо, чи перетвориться це
-  'брюки палаццо',
-  '1',
-  '1950.00'
-];
+// Перетворення в число
+const finalAmount = Number(cleaned).toFixed(2);
+console.log('✅ Final amount for signature:', finalAmount);
 
-const signatureLine = signatureParts.join(';');
-
-console.log('🧪 Стрічка підпису (join):', signatureLine);
-console.log('🌍 LANG з process.env:', process.env.LANG || '⛔ не встановлено');
-console.log('🖥️ OS locale (може бути мовчазно EN):', Intl.DateTimeFormat().resolvedOptions().locale);
+// ОС та локаль
+console.log('🌍 ОС користувач:', os.userInfo().username);
+console.log('🌐 Intl.locale:', Intl.NumberFormat().resolvedOptions().locale);
