@@ -17,47 +17,38 @@ router.post('/', async (req, res) => {
 
     console.log('🧾 ORDER з фронтенду:', order);
     console.log('💰 Сума (вхідна):', amount);
-    console.log('🔁 returnUrl:', resultUrl);
-    console.log('📡 Адреса сервісу:', serverUrl);
 
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
     const orderDate = Math.floor(Date.now() / 1000);
+    const currency = 'UAH'; // 🔒 жорстко задано
 
     if (!order.sessionId) {
-      console.error('❌ Відсутній sessionId');
       return res.status(400).send('Missing sessionId');
     }
 
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (!cartItems.length) {
-      console.error('❌ Кошик порожній для sessionId:', order.sessionId);
       return res.status(400).send('Cart is empty');
     }
 
-    console.log('🧾 Назви товарів із CartItem:', cartItems.map(i => i.name));
-    console.log('🛒 Кошик після очищення:', cartItems);
-
     const rawAmount = typeof amount === 'string' ? amount.match(/[\d.]+/g)?.[0] || '0' : amount;
-    const formattedAmount = Number(rawAmount).toFixed(2);
-    console.log('💳 Сума до підпису (formattedAmount):', formattedAmount);
+    const formattedAmount = Number(rawAmount).toFixed(2); // 🔒 без локалізації
 
-    const productNames = cartItems.map(i => {
-      let name = String(i.name || '').toLowerCase();
-      name = name.replace(/(грн|₴|uah)/gi, '');
-      name = name.replace(/[^\p{L}\p{N} _.,-]/gu, '');
-      name = name.replace(/\s+/g, ' ').trim();
-      return name;
-    });
+    const productNames = cartItems.map(i =>
+      String(i.name || i.назва || '')
+        .replace(/(грн|₴|uah)/gi, '')
+        .replace(/[^\p{L}\p{N} _.,-]/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    );
 
-    const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
     const productCounts = cartItems.map(i => String(i.quantity));
-
-    console.log('📝 productNames:', productNames);
-    console.log('🔢 productCounts:', productCounts);
-    console.log('💲 productPrices:', productPrices);
+    const productPrices = cartItems.map(i =>
+      Number(String(i.price || i.ціна || '').replace(/[^\d.]/g, '')).toFixed(2)
+    );
 
     const signatureSource = [
       merchantAccount,
@@ -65,7 +56,7 @@ router.post('/', async (req, res) => {
       orderReference,
       String(orderDate),
       formattedAmount,
-      'UAH', // 💥 Жорстко вставлено, ніяких змінних!
+      currency,
       ...productNames,
       ...productCounts,
       ...productPrices,
@@ -88,7 +79,7 @@ router.post('/', async (req, res) => {
         <input type="hidden" name="orderReference" value="${orderReference}" />
         <input type="hidden" name="orderDate" value="${orderDate}" />
         <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="UAH" />
+        <input type="hidden" name="currency" value="${currency}" />
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
@@ -100,7 +91,6 @@ router.post('/', async (req, res) => {
       </form>
     `;
 
-    console.log('📤 HTML-форма згенерована. Відправка форми...');
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
   } catch (err) {
