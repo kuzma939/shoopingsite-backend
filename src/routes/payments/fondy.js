@@ -1,4 +1,4 @@
-{/*import express from 'express';
+import express from 'express';
 import crypto from 'crypto';
 import TempOrder from '../../models/TempOrder.js';
 import Order from '../../models/Order.js';
@@ -7,6 +7,7 @@ import { sendClientConfirmation, sendAdminNotification } from '../../utils/maile
 
 const router = express.Router();
 
+// Функція для генерації підпису Fondy
 function generateFondySignature(secretKey, params) {
   const filtered = Object.entries(params)
     .filter(([_, v]) => v !== undefined && v !== null && v !== '')
@@ -17,16 +18,18 @@ function generateFondySignature(secretKey, params) {
   return crypto.createHash('sha1').update(signatureString).digest('hex');
 }
 
+// === POST /api/payments/fondy ===
 router.post('/', async (req, res) => {
   try {
     const { amount, resultUrl, serverUrl, order } = req.body;
+
     const tempId = crypto.randomUUID();
     await TempOrder.create({ orderId: tempId, orderData: order });
 
     const request = {
       merchant_id: process.env.FONDY_MERCHANT_ID,
       order_id: tempId,
-      amount: amount * 100,
+      amount: amount * 100, // копійки
       currency: 'UAH',
       order_desc: 'Оплата товару на latore.shop',
       response_url: resultUrl,
@@ -51,6 +54,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+// === POST /api/payments/fondy/callback ===
 router.post('/callback', async (req, res) => {
   try {
     const { data, signature } = req.body;
@@ -63,12 +67,20 @@ router.post('/callback', async (req, res) => {
       const temp = await TempOrder.findOne({ orderId: response.order_id });
       if (!temp) return res.status(404).send('Temp order not found');
 
-      const  = await Order.create({ ...temp.orderData, isPaid: true, paymentId: response.payment_id });
+      const order = await Order.create({
+        ...temp.orderData,
+        isPaid: true,
+        paymentId: response.payment_id,
+      });
+
       await TempOrder.deleteOne({ orderId: response.order_id });
 
       await sendClientConfirmation(order);
       await sendAdminNotification(order);
-      if (order.sessionId) await CartItem.deleteMany({ sessionId: order.sessionId });
+
+      if (order.sessionId) {
+        await CartItem.deleteMany({ sessionId: order.sessionId });
+      }
 
       return res.status(200).send('OK');
     }
@@ -81,4 +93,3 @@ router.post('/callback', async (req, res) => {
 });
 
 export default router;
-*/}
