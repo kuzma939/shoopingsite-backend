@@ -14,13 +14,14 @@ function generateSignature(secretKey, values) {
 
 router.post('/', async (req, res) => {
   try {
-    const { amount, order, resultUrl, serverUrl } = req.body;
+    const { amount, order, serverUrl } = req.body;
     console.log('🧾 ORDER from frontend:', order);
 
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
+    const resultUrl = `https://www.latore.shop/payment-success?order=${orderReference}`;
     const orderDate = Math.floor(Date.now() / 1000);
 
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
