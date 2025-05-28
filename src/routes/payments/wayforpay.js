@@ -4,10 +4,10 @@ import TempOrder from '../../models/TempOrder.js';
 import CartItem from '../../models/CartItem.js';
 
 const router = express.Router();
-
 function generateSignature(secretKey, values) {
-  const dataString = values.join(';');
-  console.log('📐 Стрічка підпису:', dataString);
+  const forcedValues = values.map((v, idx) => (idx === 5 ? 'UAH' : v)); // 🔐 index 5 = currency
+  const dataString = forcedValues.join(';');
+  console.log('📐 Стрічка підпису (fixed):', dataString);
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
 

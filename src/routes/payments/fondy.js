@@ -1,4 +1,4 @@
-import express from 'express';
+{/*import express from 'express';
 import crypto from 'crypto';
 import TempOrder from '../../models/TempOrder.js';
 import Order from '../../models/Order.js';
@@ -63,7 +63,7 @@ router.post('/callback', async (req, res) => {
       const temp = await TempOrder.findOne({ orderId: response.order_id });
       if (!temp) return res.status(404).send('Temp order not found');
 
-      const order = await Order.create({ ...temp.orderData, isPaid: true, paymentId: response.payment_id });
+      const  = await Order.create({ ...temp.orderData, isPaid: true, paymentId: response.payment_id });
       await TempOrder.deleteOne({ orderId: response.order_id });
 
       await sendClientConfirmation(order);
@@ -81,3 +81,4 @@ router.post('/callback', async (req, res) => {
 });
 
 export default router;
+*/}
