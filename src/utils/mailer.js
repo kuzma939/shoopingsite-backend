@@ -35,6 +35,7 @@ export const sendAdminNotification = async (order, cartItems) => {
         <td>${item.size}</td>
         <td>${item.quantity}</td>
         <td>${item.price} UAH</td>
+     
       </tr>
     `).join('');
 
@@ -51,6 +52,7 @@ export const sendAdminNotification = async (order, cartItems) => {
       <p><strong>Місто:</strong> ${order.city}</p>
       <p><strong>Відділення:</strong> ${order.warehouse || '—'}</p>
       <p><strong>Коментар:</strong> ${order.comment || '—'}</p>
+   <p><strong>Статус оплати:</strong> ${order.isPaid ? '✅ Оплачено' : '❌ Не оплачено'}</p>
 
       <h4>Товари:</h4>
       <table border="1" cellpadding="6" cellspacing="0">
