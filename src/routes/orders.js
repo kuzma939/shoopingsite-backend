@@ -4,6 +4,16 @@ import CartItem from '../models/CartItem.js';
 import { sendClientConfirmation, sendAdminNotification } from '../utils/mailer.js';
 
 const router = express.Router();
+// routes/orders.js
+router.get('/status', async (req, res) => {
+  const { order } = req.query;
+  if (!order) return res.status(400).json({ error: 'Missing order ID' });
+
+  const found = await Order.findOne({ paymentId: order });
+  if (!found) return res.status(404).json({ isPaid: false });
+
+  res.json({ isPaid: found.isPaid });
+});
 
 router.post('/', async (req, res) => {
   try {
