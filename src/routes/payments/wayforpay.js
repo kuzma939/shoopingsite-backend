@@ -31,52 +31,55 @@ router.post('/', async (req, res) => {
       return res.status(400).send('Missing sessionId');
     }
 
-    const cartItems = await CartItem.find({ sessionId: order.sessionId });
+    let cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (!cartItems.length) {
       console.error('❌ Кошик порожній для sessionId:', order.sessionId);
       return res.status(400).send('Cart is empty');
     }
+
     console.log('🧾 Назви товарів із CartItem:', cartItems.map(i => i.name));
 
-    console.log('🛒 Кошик:', cartItems);
+    // 🧹 Видаляємо невалідні CartItems (з "грн", "UAH" тощо)
+    const badItems = cartItems.filter(i => /(грн|uah|₴)/gi.test(String(i.name || '')));
+    if (badItems.length > 0) {
+      console.warn('🧨 Знайдено невалідні CartItems:', badItems);
+      const idsToDelete = badItems.map(i => i._id);
+      await CartItem.deleteMany({ _id: { $in: idsToDelete } });
+      cartItems = cartItems.filter(i => !idsToDelete.includes(i._id));
+    }
 
-    // Жорстке приведення суми без тексту, пробілів, валюти тощо
+    if (!cartItems.length) {
+      console.error('🛑 Після очищення кошик порожній');
+      return res.status(400).send('Cart is empty after cleanup');
+    }
+
+    console.log('🛒 Кошик після очищення:', cartItems);
+
     const rawAmount = typeof amount === 'string' ? amount.match(/[\d.]+/g)?.[0] || '0' : amount;
     const formattedAmount = Number(rawAmount).toFixed(2);
     console.log('💳 Сума до підпису (formattedAmount):', formattedAmount);
+
     const productNames = cartItems.map(i => {
       let name = String(i.name || '').toLowerCase();
       name = name.replace(/(грн|₴|uah)/gi, '');
-      name = name.replace(/[^\p{L}\p{N} _.,-]/gu, ''); // Видаляє неалфавітні символи
+      name = name.replace(/[^\p{L}\p{N} _.,-]/gu, '');
       name = name.replace(/\s+/g, ' ').trim();
       return name;
     });
-    
-    const productPrices = cartItems.map(i =>
-      Number(i.price || i.ціна).toFixed(2)
-    );
-   const productCounts = cartItems.map(i => String(i.quantity));
-  
+
+    const productPrices = cartItems.map(i => Number(i.price || 0).toFixed(2));
+    const productCounts = cartItems.map(i => String(i.quantity));
+
     console.log('📝 productNames:', productNames);
     console.log('🔢 productCounts:', productCounts);
     console.log('💲 productPrices:', productPrices);
 
-    if (
-      !productNames.length ||
-      productNames.some(n => !n) ||
-      productNames.length !== productCounts.length ||
-      productNames.length !== productPrices.length
-    ) {
-      console.error('❌ Невалідні дані кошика:', {
-        productNames,
-        productCounts,
-        productPrices,
-      });
+    if (!productNames.length || productNames.some(n => !n) || productNames.length !== productCounts.length || productNames.length !== productPrices.length) {
+      console.error('❌ Невалідні дані кошика:', { productNames, productCounts, productPrices });
       return res.status(400).send('Invalid cart data');
     }
 
     const currency = 'UAH';
-
     const signatureSource = [
       merchantAccount,
       merchantDomainName,
@@ -90,9 +93,7 @@ router.post('/', async (req, res) => {
     ];
 
     console.log('🔍 Елементи підпису DEBUG:');
-    signatureSource.forEach((v, i) => {
-      console.log(`${i + 1}.`, JSON.stringify(v));
-    });
+    signatureSource.forEach((v, i) => console.log(`${i + 1}.`, JSON.stringify(v)));
 
     const signature = generateSignature(secretKey, signatureSource);
     console.log('✅ Підпис HMAC MD5:', signature);
