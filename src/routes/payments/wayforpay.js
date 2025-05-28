@@ -36,6 +36,7 @@ router.post('/', async (req, res) => {
       console.error('❌ Кошик порожній для sessionId:', order.sessionId);
       return res.status(400).send('Cart is empty');
     }
+    console.log('🧾 Назви товарів із CartItem:', cartItems.map(i => i.name));
 
     console.log('🛒 Кошик:', cartItems);
 
