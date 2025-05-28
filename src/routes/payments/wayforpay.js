@@ -93,7 +93,7 @@ router.post('/', async (req, res) => {
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
         
-        <input type="hidden" name="language" value="UA" />
+       
         <input type="hidden" name="returnUrl" value="${resultUrl}" />
         <input type="hidden" name="serviceUrl" value="${serverUrl}" />
         <input type="hidden" name="merchantSignature" value="${signature}" />
