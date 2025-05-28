@@ -175,9 +175,12 @@ router.post('/callback', async (req, res) => {
 
       await TempOrder.deleteOne({ orderId: orderReference });
 
-      // ✉️ Відправляємо листи
       await sendClientConfirmation(savedOrder);
-      await sendAdminNotification(savedOrder);
+      // ✉️ Відправляємо листи
+      const cartItems = await CartItem.find({ sessionId: savedOrder.sessionId });
+await sendAdminNotification(savedOrder, cartItems);
+
+      
 
       // 🧹 Очищаємо корзину
       if (savedOrder.sessionId) {
