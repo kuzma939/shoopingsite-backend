@@ -4,10 +4,10 @@ import TempOrder from '../../models/TempOrder.js';
 import CartItem from '../../models/CartItem.js';
 
 const router = express.Router();
+
 function generateSignature(secretKey, values) {
-  const forcedValues = values.map((v, idx) => (idx === 5 ? 'UAH' : v)); // 🔐 index 5 = currency
-  const dataString = forcedValues.join(';');
-  console.log('📐 Стрічка підпису (fixed):', dataString);
+  const dataString = values.join(';');
+  console.log('📐 Стрічка підпису (фіксована):', dataString);
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
 
@@ -18,7 +18,7 @@ router.post('/', async (req, res) => {
     console.log('🧾 ORDER з фронтенду:', order);
     console.log('💰 Сума (вхідна):', amount);
     console.log('🔁 returnUrl:', resultUrl);
-    console.log('📡 serviceUrl:', serverUrl);
+    console.log('📡 Адреса сервісу:', serverUrl);
 
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
@@ -31,28 +31,13 @@ router.post('/', async (req, res) => {
       return res.status(400).send('Missing sessionId');
     }
 
-    let cartItems = await CartItem.find({ sessionId: order.sessionId });
+    const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (!cartItems.length) {
       console.error('❌ Кошик порожній для sessionId:', order.sessionId);
       return res.status(400).send('Cart is empty');
     }
 
     console.log('🧾 Назви товарів із CartItem:', cartItems.map(i => i.name));
-
-    // 🧹 Видаляємо невалідні CartItems (з "грн", "UAH" тощо)
-    const badItems = cartItems.filter(i => /(грн|uah|₴)/gi.test(String(i.name || '')));
-    if (badItems.length > 0) {
-      console.warn('🧨 Знайдено невалідні CartItems:', badItems);
-      const idsToDelete = badItems.map(i => i._id);
-      await CartItem.deleteMany({ _id: { $in: idsToDelete } });
-      cartItems = cartItems.filter(i => !idsToDelete.includes(i._id));
-    }
-
-    if (!cartItems.length) {
-      console.error('🛑 Після очищення кошик порожній');
-      return res.status(400).send('Cart is empty after cleanup');
-    }
-
     console.log('🛒 Кошик після очищення:', cartItems);
 
     const rawAmount = typeof amount === 'string' ? amount.match(/[\d.]+/g)?.[0] || '0' : amount;
@@ -67,33 +52,29 @@ router.post('/', async (req, res) => {
       return name;
     });
 
-    const productPrices = cartItems.map(i => Number(i.price || 0).toFixed(2));
+    const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
     const productCounts = cartItems.map(i => String(i.quantity));
 
     console.log('📝 productNames:', productNames);
     console.log('🔢 productCounts:', productCounts);
     console.log('💲 productPrices:', productPrices);
 
-    if (!productNames.length || productNames.some(n => !n) || productNames.length !== productCounts.length || productNames.length !== productPrices.length) {
-      console.error('❌ Невалідні дані кошика:', { productNames, productCounts, productPrices });
-      return res.status(400).send('Invalid cart data');
-    }
-
-    const currency = 'UAH';
     const signatureSource = [
       merchantAccount,
       merchantDomainName,
       orderReference,
       String(orderDate),
       formattedAmount,
-      currency,
+      'UAH', // 💥 Жорстко вставлено, ніяких змінних!
       ...productNames,
       ...productCounts,
       ...productPrices,
     ];
 
     console.log('🔍 Елементи підпису DEBUG:');
-    signatureSource.forEach((v, i) => console.log(`${i + 1}.`, JSON.stringify(v)));
+    signatureSource.forEach((v, i) => {
+      console.log(`${i + 1}.`, JSON.stringify(v));
+    });
 
     const signature = generateSignature(secretKey, signatureSource);
     console.log('✅ Підпис HMAC MD5:', signature);
@@ -107,7 +88,7 @@ router.post('/', async (req, res) => {
         <input type="hidden" name="orderReference" value="${orderReference}" />
         <input type="hidden" name="orderDate" value="${orderDate}" />
         <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="${currency}" />
+        <input type="hidden" name="currency" value="UAH" />
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
