@@ -26,11 +26,12 @@ router.post('/', async (req, res) => {
 
     const cartItems = await CartItem.find({ sessionId: order.sessionId });
     if (!cartItems.length) return res.status(400).send('Cart is empty');
-
-    const cleanAmount = typeof amount === 'string'
-      ? amount.replace(/\s/g, '').replace(/[^\d.]/g, '')
-      : amount;
-    const formattedAmount = Number(cleanAmount).toFixed(2);
+    const totalFromCart = cartItems.reduce((acc, item) => {
+      return acc + item.price * item.quantity;
+    }, 0);
+    
+    const formattedAmount = totalFromCart.toFixed(2);
+    
     const cleanText = (text) =>
       String(text || '')
         .replace(/['"«»]/g, '')       // лапки
