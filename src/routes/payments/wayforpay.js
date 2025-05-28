@@ -1,8 +1,10 @@
-
 import express from 'express';
 import crypto from 'crypto';
 import TempOrder from '../../models/TempOrder.js';
 import CartItem from '../../models/CartItem.js';
+import Order from '../../models/Order.js';
+import sendClientConfirmation from '../../utils/sendClientConfirmation.js';
+import sendAdminNotification from '../../utils/sendAdminNotification.js';
 
 const router = express.Router();
 
@@ -106,6 +108,102 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('❌ WayForPay помилка:', err);
     res.status(500).send('WayForPay error');
+  }
+});
+
+
+router.post('/callback', async (req, res) => {
+  try {
+    const secretKey = process.env.WAYFORPAY_SECRET;
+    const {
+      merchantAccount,
+      orderReference,
+      amount,
+      currency,
+      authCode,
+      cardPan,
+      transactionStatus,
+      reason,
+      reasonCode,
+      fee,
+      paymentSystem,
+      time,
+      merchantSignature,
+    } = req.body;
+
+    const signatureSource = [
+      merchantAccount,
+      orderReference,
+      amount,
+      currency,
+      authCode,
+      cardPan,
+      transactionStatus,
+      reason,
+      reasonCode,
+      fee,
+      paymentSystem,
+      time,
+    ];
+
+    const expectedSignature = crypto
+      .createHmac('md5', secretKey)
+      .update(signatureSource.join(';'))
+      .digest('hex');
+
+    if (merchantSignature !== expectedSignature) {
+      console.warn('❌ Invalid signature in callback');
+      return res.status(403).send('Invalid signature');
+    }
+
+    if (transactionStatus === 'Approved') {
+      const temp = await TempOrder.findOne({ orderId: orderReference });
+      if (!temp) return res.status(404).send('Temp order not found');
+
+      const savedOrder = await Order.create({
+        ...temp.orderData,
+        isPaid: true,
+        paymentId: orderReference,
+        amountPaid: parseFloat(amount),
+      });
+
+      await TempOrder.deleteOne({ orderId: orderReference });
+
+      // ⏩ Надіслати email
+      await sendClientConfirmation(savedOrder);
+      await sendAdminNotification(savedOrder);
+
+      // ⛔ Очистити корзину
+      if (savedOrder.sessionId) {
+        await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
+      }
+
+      // ✅ Відповідь WayForPay
+      const responseTime = Math.floor(Date.now() / 1000);
+      const callbackResponse = [
+        orderReference,
+        'accept',
+        responseTime,
+      ];
+
+      const responseSignature = crypto
+        .createHmac('md5', secretKey)
+        .update(callbackResponse.join(';'))
+        .digest('hex');
+
+      return res.json({
+        orderReference,
+        status: 'accept',
+        time: responseTime,
+        signature: responseSignature,
+      });
+    }
+
+    // ❌ Ігнор інших статусів (неуспішні транзакції)
+    res.status(200).send('Ignored');
+  } catch (err) {
+    console.error('❌ WayForPay callback error:', err);
+    res.status(500).send('Callback error');
   }
 });
 
