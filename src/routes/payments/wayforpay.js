@@ -3,8 +3,7 @@ import crypto from 'crypto';
 import TempOrder from '../../models/TempOrder.js';
 import CartItem from '../../models/CartItem.js';
 import Order from '../../models/Order.js';
-import sendClientConfirmation from '../../utils/sendClientConfirmation.js';
-import sendAdminNotification from '../../utils/sendAdminNotification.js';
+import { sendClientConfirmation, sendAdminNotification } from '../../utils/mailer.js';
 
 const router = express.Router();
 
