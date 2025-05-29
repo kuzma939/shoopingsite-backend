@@ -104,7 +104,7 @@ router.post('/', async (req, res) => {
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
        
-<input type="hidden" name="returnUrl" value="https://your-backend.com/api/payments/wayforpay/success?order=${orderReference}" />
+<input type="hidden" name="returnUrl" value="https://www.latore.shop/payment-success?order=${orderReference}" />
 
 <input type="hidden" name="serviceUrl" value="${serverUrl}" />
         <input type="hidden" name="merchantSignature" value="${signature}" />
@@ -259,6 +259,139 @@ router.post('/callback', async (req, res) => {
 
 export default router;
 {/*}
+  <input type="hidden" name="returnUrl" value="https://your-backend.com/api/payments/wayforpay/success?order=${orderReference}" />
+
+router.post('/callback', async (req, res) => {
+  try {
+    const secretKey = process.env.WAYFORPAY_SECRET;
+    let parsed = req.body;
+
+    console.log('📩 RAW CALLBACK BODY:', req.body);
+
+    // 🧩 Якщо тіло у вигляді одного JSON-ключа (ламана структура)
+    const firstKey = Object.keys(req.body)[0];
+    if (firstKey && firstKey.startsWith('{') && firstKey.endsWith('}')) {
+      try {
+        parsed = JSON.parse(firstKey);
+        console.log('✅ Розпарсене тіло:', parsed);
+      } catch (e) {
+        console.error('❌ JSON parsing error:', e);
+        return res.status(400).send('Malformed callback JSON');
+      }
+    }
+
+    // 🛠 Нормалізація локалізованих значень
+    const normalizeMap = {
+      'схвалено': 'Approved',
+      'затверджено': 'Approved',
+      'добре': 'Ok',
+      'ок': 'Ok',
+      'грн': 'UAH',
+      'uah': 'UAH',
+      'картка': 'card',
+      'debit': 'debit',
+      'дебет': 'debit',
+    };
+    const norm = (v) => {
+      if (typeof v === 'number') return Number(v).toFixed(2);
+      return normalizeMap[(v || '').toString().trim().toLowerCase()] || v;
+    };
+    
+    const {
+      merchantAccount,
+      orderReference,
+      amount,
+      currency,
+      authCode,
+      cardPan,
+      transactionStatus,
+      reason,
+      reasonCode,
+      fee,
+      paymentSystem,
+      processingDate,
+      merchantSignature,
+    } = parsed;
+
+    const time = processingDate || parsed.time;
+
+    const signatureSource = [
+      norm(merchantAccount),
+      norm(orderReference),
+      Number(amount).toFixed(2),
+      norm(currency),
+      norm(authCode),
+      norm(cardPan),
+      norm(transactionStatus),
+      norm(reason),
+      norm(reasonCode),
+      Number(fee).toFixed(2),
+      norm(paymentSystem),
+      norm(time),
+    ];
+
+    const expectedSignature = crypto
+      .createHmac('md5', secretKey)
+      .update(signatureSource.join(';'))
+      .digest('hex');
+
+    console.log('🔐 Signature source string:', signatureSource.join(';'));
+    console.log('✅ Очікуваний підпис:', expectedSignature);
+    console.log('📨 Отриманий підпис:', merchantSignature);
+
+    if (merchantSignature !== expectedSignature) {
+      console.warn('❌ Невірний підпис у зворотному дзвінку');
+      return res.status(403).send('Invalid signature');
+    }
+
+    // ✅ Якщо оплата пройшла
+    if (norm(transactionStatus) === 'Approved') {
+      const temp = await TempOrder.findOne({ orderId: orderReference });
+      if (!temp) return res.status(404).send('Temp order not found');
+
+      const savedOrder = await Order.create({
+        ...temp.orderData,
+        isPaid: true,
+        paymentId: orderReference,
+        amountPaid: parseFloat(amount),
+      });
+
+      await TempOrder.deleteOne({ orderId: orderReference });
+
+      await sendClientConfirmation(savedOrder);
+      const cartItems = await CartItem.find({ sessionId: savedOrder.sessionId });
+      await sendAdminNotification(savedOrder, cartItems);
+
+      if (savedOrder.sessionId) {
+        await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
+      }
+
+      const responseTime = Math.floor(Date.now() / 1000);
+      const callbackResponse = [
+        orderReference,
+        'accept',
+        responseTime,
+      ];
+      const responseSignature = crypto
+        .createHmac('md5', secretKey)
+        .update(callbackResponse.join(';'))
+        .digest('hex');
+
+      return res.json({
+        orderReference,
+        status: 'accept',
+        time: responseTime,
+        signature: responseSignature,
+      });
+    }
+
+    // 💤 Якщо статус не Approved — просто ігноруємо
+    res.status(200).send('Ignored');
+  } catch (err) {
+    console.error('❌ WayForPay callback error:', err);
+    res.status(500).send('Callback error');
+  }
+});
 import express from 'express';
 import crypto from 'crypto';
 import TempOrder from '../../models/TempOrder.js';
