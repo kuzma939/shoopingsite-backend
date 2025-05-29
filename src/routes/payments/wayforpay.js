@@ -117,7 +117,6 @@ router.post('/callback', async (req, res) => {
   try {
     const secretKey = process.env.WAYFORPAY_SECRET;
 
-    // Витягуємо значення з тіла запиту
     const {
       merchantAccount,
       orderReference,
@@ -134,11 +133,9 @@ router.post('/callback', async (req, res) => {
       merchantSignature,
     } = req.body;
 
-    // 🔐 Безпечна функція для заміни null/undefined на ''
     const safe = (v) => v ?? '';
-    console.log('📩 CALLBACK отримано:', req.body);
-    console.log('🔐 Signature source string:', signatureSource.join(';'));
-    // 🔏 Формуємо правильну стрічку для підпису
+
+    // 🔏 Створюємо підпис тільки після створення масиву
     const signatureSource = [
       safe(merchantAccount),
       safe(orderReference),
@@ -153,22 +150,23 @@ router.post('/callback', async (req, res) => {
       safe(paymentSystem),
       safe(time),
     ];
+
     console.log('📩 CALLBACK отримано:', req.body);
     console.log('🔐 Signature source string:', signatureSource.join(';'));
-    
+
     const expectedSignature = crypto
       .createHmac('md5', secretKey)
       .update(signatureSource.join(';'))
       .digest('hex');
-      console.log('✅ Очікуваний підпис:', expectedSignature);
-      console.log('📨 Отриманий підпис:', merchantSignature);
-    // 🔐 Перевірка підпису
+
+    console.log('✅ Очікуваний підпис:', expectedSignature);
+    console.log('📨 Отриманий підпис:', merchantSignature);
+
     if (merchantSignature !== expectedSignature) {
       console.warn('❌ Невірний підпис у зворотному дзвінку');
       return res.status(403).send('Invalid signature');
     }
 
-    // ✅ Якщо оплата пройшла успішно
     if (transactionStatus === 'Approved') {
       const temp = await TempOrder.findOne({ orderId: orderReference });
       if (!temp) return res.status(404).send('Temp order not found');
@@ -183,18 +181,13 @@ router.post('/callback', async (req, res) => {
       await TempOrder.deleteOne({ orderId: orderReference });
 
       await sendClientConfirmation(savedOrder);
-      // ✉️ Відправляємо листи
       const cartItems = await CartItem.find({ sessionId: savedOrder.sessionId });
-await sendAdminNotification(savedOrder, cartItems);
+      await sendAdminNotification(savedOrder, cartItems);
 
-      
-
-      // 🧹 Очищаємо корзину
       if (savedOrder.sessionId) {
         await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
       }
 
-      // ✅ Відповідь WayForPay
       const responseTime = Math.floor(Date.now() / 1000);
       const callbackResponse = [
         orderReference,
@@ -215,13 +208,13 @@ await sendAdminNotification(savedOrder, cartItems);
       });
     }
 
-    // ❌ Якщо оплата неуспішна
     res.status(200).send('Ignored');
   } catch (err) {
     console.error('❌ WayForPay callback error:', err);
     res.status(500).send('Callback error');
   }
 });
+
 
 export default router;
 {/*}
