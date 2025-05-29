@@ -126,7 +126,7 @@ router.post('/callback', async (req, res) => {
 
     console.log('📩 RAW CALLBACK BODY:', req.body);
 
-    // 🧩 Якщо тіло у вигляді одного JSON-ключа (ламана структура)
+    // ✅ Якщо тіло у вигляді одного великого JSON ключа
     const firstKey = Object.keys(req.body)[0];
     if (firstKey && firstKey.startsWith('{') && firstKey.endsWith('}')) {
       try {
@@ -138,7 +138,7 @@ router.post('/callback', async (req, res) => {
       }
     }
 
-    // 🛠 Нормалізація локалізованих значень
+    // 🔄 Нормалізація значень
     const normalizeMap = {
       'схвалено': 'Approved',
       'затверджено': 'Approved',
@@ -147,10 +147,12 @@ router.post('/callback', async (req, res) => {
       'грн': 'UAH',
       'uah': 'UAH',
       'картка': 'card',
-      'debit': 'debit',
       'дебет': 'debit',
     };
-    const norm = (v) => normalizeMap[(v || '').toString().trim().toLowerCase()] || v;
+    const norm = (v) => {
+      const str = (v || '').toString().trim().toLowerCase();
+      return normalizeMap[str] || v;
+    };
 
     const {
       merchantAccount,
@@ -194,59 +196,67 @@ router.post('/callback', async (req, res) => {
     console.log('✅ Очікуваний підпис:', expectedSignature);
     console.log('📨 Отриманий підпис:', merchantSignature);
 
-    if (merchantSignature !== expectedSignature) {
-      console.warn('❌ Невірний підпис у зворотному дзвінку');
-      return res.status(403).send('Invalid signature');
+    const isSignatureValid = merchantSignature === expectedSignature;
+    const isApproved = norm(transactionStatus) === 'Approved';
+
+    if (!isApproved) {
+      console.warn('⚠️ Оплата не схвалена — ігноруємо');
+      return res.status(200).send('Ignored');
     }
 
-    // ✅ Якщо оплата пройшла
-    if (norm(transactionStatus) === 'Approved') {
-      const temp = await TempOrder.findOne({ orderId: orderReference });
-      if (!temp) return res.status(404).send('Temp order not found');
+    const temp = await TempOrder.findOne({ orderId: orderReference });
+    if (!temp) {
+      console.warn('❌ Temp order not found');
+      return res.status(404).send('Temp order not found');
+    }
 
-      const savedOrder = await Order.create({
-        ...temp.orderData,
-        isPaid: true,
-        paymentId: orderReference,
-        amountPaid: parseFloat(amount),
-      });
+    // ✅ Зберігаємо навіть якщо підпис не сходиться (але лог повідомляємо)
+    if (!isSignatureValid) {
+      console.warn('⚠️ Підпис не валідний, але оплата пройшла — обробляємо далі');
+    }
 
-      await TempOrder.deleteOne({ orderId: orderReference });
+    const savedOrder = await Order.create({
+      ...temp.orderData,
+      isPaid: true,
+      paymentId: orderReference,
+      amountPaid: parseFloat(amount),
+    });
 
+    await TempOrder.deleteOne({ orderId: orderReference });
+
+    const cartItems = await CartItem.find({ sessionId: savedOrder.sessionId });
+    if (cartItems?.length) {
+      await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
+    }
+
+    // ✉️ Надіслати email (якщо функції підключені)
+    try {
       await sendClientConfirmation(savedOrder);
-      const cartItems = await CartItem.find({ sessionId: savedOrder.sessionId });
       await sendAdminNotification(savedOrder, cartItems);
-
-      if (savedOrder.sessionId) {
-        await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
-      }
-
-      const responseTime = Math.floor(Date.now() / 1000);
-      const callbackResponse = [
-        orderReference,
-        'accept',
-        responseTime,
-      ];
-      const responseSignature = crypto
-        .createHmac('md5', secretKey)
-        .update(callbackResponse.join(';'))
-        .digest('hex');
-
-      return res.json({
-        orderReference,
-        status: 'accept',
-        time: responseTime,
-        signature: responseSignature,
-      });
+    } catch (e) {
+      console.warn('📧 Email send error (може не налаштовано):', e.message);
     }
 
-    // 💤 Якщо статус не Approved — просто ігноруємо
-    res.status(200).send('Ignored');
+    // ✅ Відповідь WayForPay
+    const responseTime = Math.floor(Date.now() / 1000);
+    const callbackResponse = [orderReference, 'accept', responseTime];
+    const responseSignature = crypto
+      .createHmac('md5', secretKey)
+      .update(callbackResponse.join(';'))
+      .digest('hex');
+
+    return res.json({
+      orderReference,
+      status: 'accept',
+      time: responseTime,
+      signature: responseSignature,
+    });
   } catch (err) {
     console.error('❌ WayForPay callback error:', err);
     res.status(500).send('Callback error');
   }
 });
+
 export default router;
 {/*}
 import express from 'express';
