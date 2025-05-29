@@ -11,13 +11,13 @@ function generateSignature(secretKey, values) {
   const dataString = values.join(';');
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
-router.get('/success', (req, res) => {
+{/*router.get('/success', (req, res) => {
   res.redirect(`https://www.latore.shop/payment-success?order=${req.query.order}`);
-});
+});*/}
 
 router.post('/', async (req, res) => {
   try {
-    const { amount, order, serverUrl } = req.body;
+    const { amount, order, resultUrl, serverUrl } = req.body;
     console.log('🧾 ORDER from frontend:', order);
 
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
