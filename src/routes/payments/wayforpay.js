@@ -112,10 +112,24 @@ router.post('/', async (req, res) => {
     res.status(500).send('WayForPay error');
   }
 });
-
 router.post('/callback', async (req, res) => {
   try {
     const secretKey = process.env.WAYFORPAY_SECRET;
+    let parsed = req.body;
+
+    console.log('📩 RAW CALLBACK BODY:', req.body);
+
+    // 🧩 Фікс для ламаного формату
+    const firstKey = Object.keys(req.body)[0];
+    if (firstKey && firstKey.startsWith('{') && firstKey.endsWith('}')) {
+      try {
+        parsed = JSON.parse(firstKey);
+        console.log('✅ Розпарсене тіло:', parsed);
+      } catch (e) {
+        console.error('❌ Помилка при парсингу JSON з ключа:', e);
+        return res.status(400).send('Malformed JSON');
+      }
+    }
 
     const {
       merchantAccount,
@@ -131,11 +145,11 @@ router.post('/callback', async (req, res) => {
       paymentSystem,
       time,
       merchantSignature,
-    } = req.body;
+    } = parsed;
+
+    console.log('📨 Отриманий підпис:', merchantSignature);
 
     const safe = (v) => v ?? '';
-
-    // 🔏 Створюємо підпис тільки після створення масиву
     const signatureSource = [
       safe(merchantAccount),
       safe(orderReference),
@@ -150,28 +164,21 @@ router.post('/callback', async (req, res) => {
       safe(paymentSystem),
       safe(time),
     ];
-   
-    console.log('📨 Отриманий підпис:', req.body.merchantSignature);
-    console.log('🔑 Поля в req.body:', Object.keys(req.body));
- ;
-    console.log('🧩 Весь body як JSON:', JSON.stringify(req.body));
-    
-    console.log('📩 CALLBACK отримано:', req.body);
-    console.log('🔐 Signature source string:', signatureSource.join(';'));
 
     const expectedSignature = crypto
       .createHmac('md5', secretKey)
       .update(signatureSource.join(';'))
       .digest('hex');
 
+    console.log('🔐 Signature source string:', signatureSource.join(';'));
     console.log('✅ Очікуваний підпис:', expectedSignature);
-    console.log('📨 Отриманий підпис:', merchantSignature);
 
     if (merchantSignature !== expectedSignature) {
       console.warn('❌ Невірний підпис у зворотному дзвінку');
       return res.status(403).send('Invalid signature');
     }
 
+    // ✅ Збереження замовлення після успішної оплати
     if (transactionStatus === 'Approved') {
       const temp = await TempOrder.findOne({ orderId: orderReference });
       if (!temp) return res.status(404).send('Temp order not found');
@@ -213,6 +220,7 @@ router.post('/callback', async (req, res) => {
       });
     }
 
+    // Якщо статус не Approved — проігнорувати
     res.status(200).send('Ignored');
   } catch (err) {
     console.error('❌ WayForPay callback error:', err);
