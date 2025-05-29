@@ -166,14 +166,14 @@ router.post('/callback', async (req, res) => {
     const signatureSource = [
       norm(merchantAccount),
       norm(orderReference),
-      norm(amount),
+      Number(amount).toFixed(2),
       norm(currency),
       norm(authCode),
       norm(cardPan),
       norm(transactionStatus),
       norm(reason),
       norm(reasonCode),
-      norm(fee),
+      Number(fee).toFixed(2),
       norm(paymentSystem),
       norm(time),
     ];
