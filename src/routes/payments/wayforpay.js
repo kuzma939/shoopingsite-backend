@@ -152,6 +152,9 @@ router.post('/callback', async (req, res) => {
     ];
    
     console.log('📨 Отриманий підпис:', req.body.merchantSignature);
+    console.log('🔑 Поля в req.body:', Object.keys(req.body));
+ ;
+    console.log('🧩 Весь body як JSON:', JSON.stringify(req.body));
     
     console.log('📩 CALLBACK отримано:', req.body);
     console.log('🔐 Signature source string:', signatureSource.join(';'));
