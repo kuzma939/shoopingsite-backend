@@ -150,7 +150,9 @@ router.post('/callback', async (req, res) => {
       safe(paymentSystem),
       safe(time),
     ];
-
+   
+    console.log('📨 Отриманий підпис:', req.body.merchantSignature);
+    
     console.log('📩 CALLBACK отримано:', req.body);
     console.log('🔐 Signature source string:', signatureSource.join(';'));
 
