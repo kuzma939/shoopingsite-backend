@@ -11,13 +11,20 @@ function generateSignature(secretKey, values) {
   const dataString = values.join(';');
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
+// ✅ Редирект після успішної оплати
+router.get('/success', (req, res) => {
+  const orderId = req.query.order;
+  const redirectUrl = `https://www.latore.shop/payment-success?order=${orderId}`;
+  res.redirect(302, redirectUrl);
+});
+
 {/*router.get('/success', (req, res) => {
   res.redirect(`https://www.latore.shop/payment-success?order=${req.query.order}`);
 });*/}
 
 router.post('/', async (req, res) => {
   try {
-    const { amount, order, resultUrl, serverUrl } = req.body;
+    const { amount, order, serverUrl } = req.body;
     console.log('🧾 ORDER from frontend:', order);
 
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
@@ -97,7 +104,7 @@ router.post('/', async (req, res) => {
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
        
-        <input type="hidden" name="returnUrl" value="${resultUrl}?order=${orderReference}" />
+<input type="hidden" name="returnUrl" value="https://your-backend.com/api/payments/wayforpay/success?order=${orderReference}" />
 
 <input type="hidden" name="serviceUrl" value="${serverUrl}" />
         <input type="hidden" name="merchantSignature" value="${signature}" />
