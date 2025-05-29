@@ -11,6 +11,9 @@ function generateSignature(secretKey, values) {
   const dataString = values.join(';');
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
+router.get('/success', (req, res) => {
+  res.redirect(`https://www.latore.shop/payment-success?order=${req.query.order}`);
+});
 
 router.post('/', async (req, res) => {
   try {
@@ -21,8 +24,7 @@ router.post('/', async (req, res) => {
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
     const orderReference = crypto.randomUUID();
-    const resultUrl = `https://www.latore.shop/payment-success?order=${orderReference}`;
-    const orderDate = Math.floor(Date.now() / 1000);
+  const orderDate = Math.floor(Date.now() / 1000);
 
     if (!order.sessionId) return res.status(400).send('Missing sessionId');
 
@@ -94,10 +96,10 @@ router.post('/', async (req, res) => {
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-        
        
-        <input type="hidden" name="returnUrl" value="${resultUrl}" />
-        <input type="hidden" name="serviceUrl" value="${serverUrl}" />
+        <input type="hidden" name="returnUrl" value="${resultUrl}?order=${orderReference}" />
+
+<input type="hidden" name="serviceUrl" value="${serverUrl}" />
         <input type="hidden" name="merchantSignature" value="${signature}" />
         <script>document.forms[0].submit();</script>
       </form>
@@ -134,7 +136,8 @@ router.post('/callback', async (req, res) => {
 
     // 🔐 Безпечна функція для заміни null/undefined на ''
     const safe = (v) => v ?? '';
-
+    console.log('📩 CALLBACK отримано:', req.body);
+    console.log('🔐 Signature source string:', signatureSource.join(';'));
     // 🔏 Формуємо правильну стрічку для підпису
     const signatureSource = [
       safe(merchantAccount),
@@ -150,12 +153,15 @@ router.post('/callback', async (req, res) => {
       safe(paymentSystem),
       safe(time),
     ];
-
+    console.log('📩 CALLBACK отримано:', req.body);
+    console.log('🔐 Signature source string:', signatureSource.join(';'));
+    
     const expectedSignature = crypto
       .createHmac('md5', secretKey)
       .update(signatureSource.join(';'))
       .digest('hex');
-
+      console.log('✅ Очікуваний підпис:', expectedSignature);
+      console.log('📨 Отриманий підпис:', merchantSignature);
     // 🔐 Перевірка підпису
     if (merchantSignature !== expectedSignature) {
       console.warn('❌ Невірний підпис у зворотному дзвінку');
