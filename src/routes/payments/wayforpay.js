@@ -18,9 +18,7 @@ router.get('/success', (req, res) => {
   res.redirect(302, redirectUrl);
 });
 
-{/*router.get('/success', (req, res) => {
-  res.redirect(`https://www.latore.shop/payment-success?order=${req.query.order}`);
-});*/}
+
 
 router.post('/', async (req, res) => {
   try {
@@ -103,8 +101,7 @@ router.post('/', async (req, res) => {
         ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
         ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
         ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-       
-  <input type="hidden" name="returnUrl" value="https://your-backend.com/api/payments/wayforpay/success?order=${orderReference}" />
+       <input type="hidden" name="returnUrl" value="https://shoopingsite-backend-1.onrender.com/api/payments/wayforpay/success?order=${orderReference}" />
 
 <input type="hidden" name="serviceUrl" value="${serverUrl}" />
         <input type="hidden" name="merchantSignature" value="${signature}" />
@@ -259,6 +256,8 @@ router.post('/callback', async (req, res) => {
 
 export default router;
 {/*}
+
+  <input type="hidden" name="returnUrl" value="https://your-backend.com/api/payments/wayforpay/success?order=${orderReference}" />
 
 router.post('/callback', async (req, res) => {
   try {
