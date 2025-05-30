@@ -11,13 +11,28 @@ function generateSignature(secretKey, values) {
   const dataString = values.join(';');
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
+// ✅ Обробка редиректу після оплати (GET або POST)
+const redirectToSuccess = (req, res) => {
+  const orderId = req.query.order || req.body.order;
+
+  if (!orderId) {
+    return res.redirect(302, 'https://www.latore.shop');
+  }
+
+  const redirectUrl = `https://www.latore.shop/payment-success?order=${orderId}`;
+  res.redirect(302, redirectUrl);
+};
+
+router.get('/success', redirectToSuccess);
+router.post('/success', redirectToSuccess);
+{/*}
 // ✅ Редирект після успішної оплати
 router.get('/success', (req, res) => {
   const orderId = req.query.order;
   const redirectUrl = `https://www.latore.shop/payment-success?order=${orderId}`;
   res.redirect(302, redirectUrl);
 });
-
+*/}
 
 
 router.post('/', async (req, res) => {
