@@ -103,7 +103,24 @@ router.post('/', async (req, res) => {
     console.log('✅ Підпис:', signature);
 
     await TempOrder.create({ orderId: orderReference, orderData: order });
-
+res.json({
+  url: 'https://secure.wayforpay.com/pay',
+  params: {
+    merchantAccount,
+    merchantDomainName,
+    orderReference,
+    orderDate,
+    amount: formattedAmount,
+    currency: 'UAH',
+    productName: productNames,
+    productCount: productCounts,
+    productPrice: productPrices,
+    returnUrl: `https://shoopingsite-backend-1.onrender.com/api/payments/wayforpay/success?order=${orderReference}`,
+    serviceUrl: serverUrl,
+    merchantSignature: signature,
+  }
+});
+{/*}
     const html = `
       <form method="POST" action="https://secure.wayforpay.com/pay">
         <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
@@ -125,7 +142,7 @@ router.post('/', async (req, res) => {
     `;
 
     res.setHeader('Content-Type', 'text/html');
-    res.send(html);
+    res.send(html);*/}
   } catch (err) {
     console.error('❌ WayForPay помилка:', err);
     res.status(500).send('WayForPay error');
