@@ -115,7 +115,9 @@ res.json({
     productName: productNames,
     productCount: productCounts,
     productPrice: productPrices,
-    returnUrl: `https://shoopingsite-backend-1.onrender.com/api/payments/wayforpay/success?order=${orderReference}`,
+    returnUrl: `https://www.latore.shop/payment-success?order=${orderReference}`,
+
+   // returnUrl: `https://shoopingsite-backend-1.onrender.com/api/payments/wayforpay/success?order=${orderReference}`,
     serviceUrl: serverUrl,
     merchantSignature: signature,
   }
