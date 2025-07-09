@@ -37,9 +37,18 @@ router.post('/', async (req, res) => {
 
     // ⬇️ Надіслати листи
     if (order.paymentMethod === 'no-payment') {
+  await sendClientConfirmation(order);
+  await sendAdminNotification(
+    order,
+    Array.isArray(order.items) && order.items.length > 0 ? order.items : cartItems
+  );
+}
+{/*
+    if (order.paymentMethod === 'no-payment') {
       await sendClientConfirmation(order);
-      await sendAdminNotification(order, cartItems); // ✅ Виправлення тут
-    }
+      await sendAdminNotification(order, order.items.length ? order.items : cartItems);
+await sendAdminNotification(order, cartItems); // ✅ Виправлення тут
+    }*/}
 // 🧹 Очистити корзину тільки якщо це замовлення без оплати
 if (order.paymentMethod === 'no-payment' && order.sessionId) {
   await CartItem.deleteMany({ sessionId: order.sessionId });
