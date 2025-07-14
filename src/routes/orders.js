@@ -14,7 +14,61 @@ router.get('/status', async (req, res) => {
 
   res.json({ isPaid: found.isPaid });
 });
+router.post('/', async (req, res) => {
+  try {
+    const order = req.body;
+    console.log('📦 Отримано замовлення:', order);
+    console.log('🧪 sessionId:', order.sessionId);
 
+    // ⬇️ Отримуємо товари з корзини
+    const cartItems = await CartItem.find({ sessionId: order.sessionId });
+
+    order.items = cartItems.map(item => ({
+      name: item.name,
+      productId: item.productId,
+      color: item.color,
+      size: item.size,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+
+    // ⬇️ Обчислюємо повну суму замовлення
+    const amount = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    order.amount = Number(amount.toFixed(2));
+
+    // ⬇️ Якщо оплата не онлайн, вважаємо що не оплачено
+    if (order.paymentMethod === 'no-payment') {
+      order.amountPaid = 0;
+    }
+
+    const savedOrder = await Order.create(order);
+    console.log('✅ Замовлення збережено:', savedOrder);
+
+    // ⬇️ Надсилаємо листи, тільки якщо без онлайн-оплати
+    if (order.paymentMethod === 'no-payment') {
+      await sendClientConfirmation(savedOrder);
+      await sendAdminNotification(
+        savedOrder,
+        Array.isArray(savedOrder.items) && savedOrder.items.length > 0
+          ? savedOrder.items
+          : cartItems
+      );
+    }
+
+    // ⬇️ Очищаємо корзину, якщо без оплати
+    if (order.paymentMethod === 'no-payment' && order.sessionId) {
+      await CartItem.deleteMany({ sessionId: order.sessionId });
+      console.log('🧹 Корзина очищена для sessionId:', order.sessionId);
+    }
+
+    res.status(201).json(savedOrder);
+  } catch (error) {
+    console.error('❌ Помилка збереження замовлення:', error);
+    res.status(500).json({ error: 'Помилка при збереженні замовлення' });
+  }
+});
+
+{/*}
 router.post('/', async (req, res) => {
   try {
     const order = req.body;
@@ -48,7 +102,7 @@ router.post('/', async (req, res) => {
       await sendClientConfirmation(order);
       await sendAdminNotification(order, order.items.length ? order.items : cartItems);
 await sendAdminNotification(order, cartItems); // ✅ Виправлення тут
-    }*/}
+    }
 // 🧹 Очистити корзину тільки якщо це замовлення без оплати
 if (order.paymentMethod === 'no-payment' && order.sessionId) {
   await CartItem.deleteMany({ sessionId: order.sessionId });
@@ -61,6 +115,6 @@ if (order.paymentMethod === 'no-payment' && order.sessionId) {
     console.error('❌ Помилка збереження замовлення:', error);
     res.status(500).json({ error: 'Помилка при збереженні замовлення' });
   }
-});
+});*/}
 
 export default router;
