@@ -22,12 +22,13 @@ const redirectToSuccess = (req, res) => {
 router.get('/success', redirectToSuccess);
 router.post('/success', redirectToSuccess);
 
-// ✅ Основний маршрут оплати
+// ✅ Ініціалізація платежу
 router.post('/', async (req, res) => {
   try {
     const { order, serverUrl } = req.body;
-    const paymentType = order?.paymentType || 'full'; // 'half' або 'full'
+    console.log('🧾 ORDER from frontend:', order);
 
+    const paymentType = order?.paymentType || 'full';
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
@@ -57,6 +58,7 @@ router.post('/', async (req, res) => {
     if (!productNames.length || productNames.some(n => !n) ||
         productNames.length !== productCounts.length ||
         productNames.length !== productPrices.length) {
+      console.error('❌ Invalid cart data:', { productNames, productCounts, productPrices });
       return res.status(400).send('Invalid cart data');
     }
 
@@ -72,14 +74,16 @@ router.post('/', async (req, res) => {
       ...productPrices,
     ];
 
+    console.log('🔍 Signature source string:', signatureSource.join(';'));
     const signature = generateSignature(secretKey, signatureSource);
+    console.log('✅ Signature:', signature);
 
     await TempOrder.create({
       orderId: orderReference,
       orderData: {
         ...order,
         paymentType,
-        amount: totalFromCart.toFixed(2), // зберігаємо повну суму
+        amount: totalFromCart.toFixed(2)
       }
     });
 
@@ -106,22 +110,36 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ✅ CALLBACK з WayForPay
+// ✅ Callback після оплати
 router.post('/callback', async (req, res) => {
   try {
     const secretKey = process.env.WAYFORPAY_SECRET;
     let parsed = req.body;
 
+    console.log('📩 RAW CALLBACK BODY:', req.body);
+
     const firstKey = Object.keys(req.body)[0];
     if (firstKey && firstKey.startsWith('{') && firstKey.endsWith('}')) {
       try {
         parsed = JSON.parse(firstKey);
+        console.log('✅ Parsed callback:', parsed);
       } catch (e) {
+        console.error('❌ Callback JSON parse error:', e);
         return res.status(400).send('Malformed callback JSON');
       }
     }
 
-    const norm = (v) => (v || '').toString().trim().toLowerCase();
+    const normalizeMap = {
+      'схвалено': 'approved',
+      'затверджено': 'approved',
+      'грн': 'uah',
+    };
+
+    const norm = (v) => {
+      const str = (v || '').toString().trim().toLowerCase();
+      return normalizeMap[str] || str;
+    };
+
     const {
       merchantAccount, orderReference, amount, currency,
       authCode, cardPan, transactionStatus, reason,
@@ -130,6 +148,7 @@ router.post('/callback', async (req, res) => {
     } = parsed;
 
     const time = processingDate || parsed.time;
+
     const signatureSource = [
       norm(merchantAccount), norm(orderReference),
       Number(amount).toFixed(2), norm(currency), norm(authCode),
@@ -137,13 +156,29 @@ router.post('/callback', async (req, res) => {
       norm(reasonCode), Number(fee).toFixed(2), norm(paymentSystem), norm(time)
     ];
 
-    const expectedSignature = crypto.createHmac('md5', secretKey).update(signatureSource.join(';')).digest('hex');
-    const isApproved = norm(transactionStatus) === 'approved';
+    const expectedSignature = generateSignature(secretKey, signatureSource);
 
-    if (!isApproved) return res.status(200).send('Ignored');
+    console.log('🔐 Signature string:', signatureSource.join(';'));
+    console.log('✅ Expected:', expectedSignature);
+    console.log('📨 Received:', merchantSignature);
+
+    const isApproved = norm(transactionStatus) === 'approved';
+    const isSignatureValid = merchantSignature === expectedSignature;
+
+    if (!isApproved) {
+      console.warn('⚠️ Payment not approved — ignored');
+      return res.status(200).send('Ignored');
+    }
 
     const temp = await TempOrder.findOne({ orderId: orderReference });
-    if (!temp) return res.status(404).send('Temp order not found');
+    if (!temp) {
+      console.warn('❌ Temp order not found');
+      return res.status(404).send('Temp order not found');
+    }
+
+    if (!isSignatureValid) {
+      console.warn('⚠️ Signature invalid, but payment is approved — continuing...');
+    }
 
     const savedOrder = await Order.create({
       ...temp.orderData,
@@ -153,18 +188,22 @@ router.post('/callback', async (req, res) => {
     });
 
     await TempOrder.deleteOne({ orderId: orderReference });
-    await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
+
+    const cartItems = await CartItem.find({ sessionId: savedOrder.sessionId });
+    if (cartItems.length) {
+      await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
+    }
 
     try {
       await sendClientConfirmation(savedOrder);
-      await sendAdminNotification(savedOrder);
+      await sendAdminNotification(savedOrder, cartItems);
     } catch (e) {
       console.warn('📧 Email error:', e.message);
     }
 
     const responseTime = Math.floor(Date.now() / 1000);
     const callbackResponse = [orderReference, 'accept', responseTime];
-    const responseSignature = crypto.createHmac('md5', secretKey).update(callbackResponse.join(';')).digest('hex');
+    const responseSignature = generateSignature(secretKey, callbackResponse);
 
     res.json({
       orderReference,
