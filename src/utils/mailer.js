@@ -13,18 +13,31 @@ const transporter = nodemailer.createTransport({
 
 // 📧 Лист клієнту
 export const sendClientConfirmation = async (order) => {
+  const total = Number(order.amount).toFixed(2);
+  const paid = Number(order.amountPaid || 0).toFixed(2);
+  const isHalf = order.paymentType === 'half';
+
+  const paymentInfo = `
+    <p><strong>Тип оплати:</strong> ${isHalf ? 'Передоплата 50%' : 'Повна оплата'}</p>
+    <p><strong>Сума замовлення:</strong> ${total} UAH</p>
+    <p><strong>Оплачено:</strong> ${paid} UAH</p>
+    <p><strong>Статус оплати:</strong> ${order.isPaid ? '✅ Оплачено' : '❌ Не оплачено'}</p>
+  `;
+
   await transporter.sendMail({
     from: `"Магазин 👗" <${process.env.GMAIL_USER}>`,
     to: order.email,
     subject: 'Підтвердження замовлення',
     html: `
       <p>Вітаємо, ${order.firstName}!</p>
-      <p>Дякуємо за замовлення.</p>
-      <p>Оплачено: <strong>${order.amountPaid?.toFixed(2) || 0} UAH</strong> з ${Number(order.total).toFixed(2)} UAH.</p>
-      <p>Наш менеджер звʼяжеться з вами найближчим часом.</p>
+      <p>Дякуємо за ваше замовлення. Наш менеджер звʼяжеться з вами найближчим часом.</p>
+
+      ${paymentInfo}
     `,
   });
 };
+
+
 
 // 📧 Лист адміну
 export const sendAdminNotification = async (order, cartItems) => {
@@ -41,6 +54,17 @@ export const sendAdminNotification = async (order, cartItems) => {
       </tr>
     `).join('');
 
+  const total = Number(order.amount).toFixed(2);
+  const paid = Number(order.amountPaid || 0).toFixed(2);
+  const isHalf = order.paymentType === 'half';
+
+  const paymentInfo = `
+    <p><strong>Тип оплати:</strong> ${isHalf ? 'Передоплата 50%' : 'Повна оплата'}</p>
+    <p><strong>Сума замовлення:</strong> ${total} UAH</p>
+    <p><strong>Оплачено:</strong> ${paid} UAH</p>
+    <p><strong>Статус оплати:</strong> ${order.isPaid ? '✅ Оплачено' : '❌ Не оплачено'}</p>
+  `;
+
   await transporter.sendMail({
     from: `"Магазин 👗" <${process.env.GMAIL_USER}>`,
     to: process.env.ADMIN_EMAIL,
@@ -54,7 +78,8 @@ export const sendAdminNotification = async (order, cartItems) => {
       <p><strong>Місто:</strong> ${order.city}</p>
       <p><strong>Відділення:</strong> ${order.warehouse || '—'}</p>
       <p><strong>Коментар:</strong> ${order.comment || '—'}</p>
-      <p><strong>Статус оплати:</strong> ${order.isPaid ? '✅ Оплачено' : '❌ Не оплачено'}</p>
+
+      ${paymentInfo}
 
       <h4>Товари:</h4>
       <table border="1" cellpadding="6" cellspacing="0">
@@ -73,12 +98,10 @@ export const sendAdminNotification = async (order, cartItems) => {
           ${productsHtml}
         </tbody>
       </table>
-
-      <p><strong>Сума замовлення:</strong> ${Number(order.total).toFixed(2)} UAH</p>
-      <p><strong>Оплачено:</strong> ${order.amountPaid?.toFixed(2) || 0} UAH</p>
     `,
   });
 };
+
 {/*import nodemailer from 'nodemailer';
 
 const transporter = nodemailer.createTransport({
