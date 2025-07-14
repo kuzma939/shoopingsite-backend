@@ -185,6 +185,7 @@ router.post('/callback', async (req, res) => {
       isPaid: true,
       paymentId: orderReference,
       amountPaid: parseFloat(amount),
+      amount: parseFloat(temp.orderData.amount),
     });
 
     await TempOrder.deleteOne({ orderId: orderReference });
