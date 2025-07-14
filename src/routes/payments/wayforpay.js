@@ -12,19 +12,22 @@ function generateSignature(secretKey, values) {
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
 
+// ✅ Обробка редиректу після оплати
 const redirectToSuccess = (req, res) => {
   const orderId = req.query.order || req.body.order;
   if (!orderId) return res.redirect(302, 'https://www.latore.shop');
-  const redirectUrl = `https://www.latore.shop/payment-success?order=${orderId}`;
-  res.redirect(302, redirectUrl);
+  res.redirect(302, `https://www.latore.shop/payment-success?order=${orderId}`);
 };
 
 router.get('/success', redirectToSuccess);
 router.post('/success', redirectToSuccess);
 
+// ✅ Основний маршрут оплати
 router.post('/', async (req, res) => {
   try {
-    const { amount, paymentType, order, serverUrl } = req.body;
+    const { order, serverUrl } = req.body;
+    const paymentType = order?.paymentType || 'full'; // 'half' або 'full'
+
     const merchantAccount = process.env.WAYFORPAY_MERCHANT;
     const merchantDomainName = 'latore.shop';
     const secretKey = process.env.WAYFORPAY_SECRET;
@@ -37,7 +40,9 @@ router.post('/', async (req, res) => {
     if (!cartItems.length) return res.status(400).send('Cart is empty');
 
     const totalFromCart = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-    const finalAmount = paymentType === 'half' ? (totalFromCart / 2).toFixed(2) : totalFromCart.toFixed(2);
+    const finalAmount = paymentType === 'half'
+      ? (totalFromCart / 2).toFixed(2)
+      : totalFromCart.toFixed(2);
 
     const cleanText = (text) => String(text || '')
       .replace(/['"«»]/g, '')
@@ -52,7 +57,6 @@ router.post('/', async (req, res) => {
     if (!productNames.length || productNames.some(n => !n) ||
         productNames.length !== productCounts.length ||
         productNames.length !== productPrices.length) {
-      console.error('❌ Invalid cart data:', { productNames, productCounts, productPrices });
       return res.status(400).send('Invalid cart data');
     }
 
@@ -75,7 +79,7 @@ router.post('/', async (req, res) => {
       orderData: {
         ...order,
         paymentType,
-        amount: totalFromCart.toFixed(2)
+        amount: totalFromCart.toFixed(2), // зберігаємо повну суму
       }
     });
 
@@ -102,10 +106,12 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ✅ CALLBACK з WayForPay
 router.post('/callback', async (req, res) => {
   try {
     const secretKey = process.env.WAYFORPAY_SECRET;
     let parsed = req.body;
+
     const firstKey = Object.keys(req.body)[0];
     if (firstKey && firstKey.startsWith('{') && firstKey.endsWith('}')) {
       try {
@@ -153,7 +159,7 @@ router.post('/callback', async (req, res) => {
       await sendClientConfirmation(savedOrder);
       await sendAdminNotification(savedOrder);
     } catch (e) {
-      console.warn('📧 Email send error:', e.message);
+      console.warn('📧 Email error:', e.message);
     }
 
     const responseTime = Math.floor(Date.now() / 1000);
@@ -166,6 +172,7 @@ router.post('/callback', async (req, res) => {
       time: responseTime,
       signature: responseSignature,
     });
+
   } catch (err) {
     console.error('❌ WayForPay callback error:', err);
     res.status(500).send('Callback error');
@@ -173,6 +180,7 @@ router.post('/callback', async (req, res) => {
 });
 
 export default router;
+
 {/*}
 import express from 'express';
 import crypto from 'crypto';
