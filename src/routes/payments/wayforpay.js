@@ -11,6 +11,182 @@ function generateSignature(secretKey, values) {
   const dataString = values.join(';');
   return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
 }
+
+const redirectToSuccess = (req, res) => {
+  const orderId = req.query.order || req.body.order;
+  if (!orderId) return res.redirect(302, 'https://www.latore.shop');
+  const redirectUrl = `https://www.latore.shop/payment-success?order=${orderId}`;
+  res.redirect(302, redirectUrl);
+};
+
+router.get('/success', redirectToSuccess);
+router.post('/success', redirectToSuccess);
+
+router.post('/', async (req, res) => {
+  try {
+    const { amount, paymentType, order, serverUrl } = req.body;
+    const merchantAccount = process.env.WAYFORPAY_MERCHANT;
+    const merchantDomainName = 'latore.shop';
+    const secretKey = process.env.WAYFORPAY_SECRET;
+    const orderReference = crypto.randomUUID();
+    const orderDate = Math.floor(Date.now() / 1000);
+
+    if (!order.sessionId) return res.status(400).send('Missing sessionId');
+
+    const cartItems = await CartItem.find({ sessionId: order.sessionId });
+    if (!cartItems.length) return res.status(400).send('Cart is empty');
+
+    const totalFromCart = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const finalAmount = paymentType === 'half' ? (totalFromCart / 2).toFixed(2) : totalFromCart.toFixed(2);
+
+    const cleanText = (text) => String(text || '')
+      .replace(/['"«»]/g, '')
+      .replace(/грн|₴|\$|\s+грн/gi, '')
+      .replace(/[()]/g, '')
+      .trim();
+
+    const productNames = cartItems.map(i => cleanText(i.name));
+    const productCounts = cartItems.map(i => String(i.quantity));
+    const productPrices = cartItems.map(i => Number(i.price).toFixed(2));
+
+    if (!productNames.length || productNames.some(n => !n) ||
+        productNames.length !== productCounts.length ||
+        productNames.length !== productPrices.length) {
+      console.error('❌ Invalid cart data:', { productNames, productCounts, productPrices });
+      return res.status(400).send('Invalid cart data');
+    }
+
+    const signatureSource = [
+      merchantAccount,
+      merchantDomainName,
+      orderReference,
+      String(orderDate),
+      finalAmount,
+      'UAH',
+      ...productNames,
+      ...productCounts,
+      ...productPrices,
+    ];
+
+    const signature = generateSignature(secretKey, signatureSource);
+
+    await TempOrder.create({
+      orderId: orderReference,
+      orderData: {
+        ...order,
+        paymentType,
+        amount: totalFromCart.toFixed(2)
+      }
+    });
+
+    res.json({
+      url: 'https://secure.wayforpay.com/pay',
+      params: {
+        merchantAccount,
+        merchantDomainName,
+        orderReference,
+        orderDate,
+        amount: finalAmount,
+        currency: 'UAH',
+        productName: productNames,
+        productCount: productCounts,
+        productPrice: productPrices,
+        serviceUrl: serverUrl,
+        merchantSignature: signature,
+      }
+    });
+
+  } catch (err) {
+    console.error('❌ WayForPay error:', err);
+    res.status(500).send('WayForPay error');
+  }
+});
+
+router.post('/callback', async (req, res) => {
+  try {
+    const secretKey = process.env.WAYFORPAY_SECRET;
+    let parsed = req.body;
+    const firstKey = Object.keys(req.body)[0];
+    if (firstKey && firstKey.startsWith('{') && firstKey.endsWith('}')) {
+      try {
+        parsed = JSON.parse(firstKey);
+      } catch (e) {
+        return res.status(400).send('Malformed callback JSON');
+      }
+    }
+
+    const norm = (v) => (v || '').toString().trim().toLowerCase();
+    const {
+      merchantAccount, orderReference, amount, currency,
+      authCode, cardPan, transactionStatus, reason,
+      reasonCode, fee, paymentSystem, processingDate,
+      merchantSignature
+    } = parsed;
+
+    const time = processingDate || parsed.time;
+    const signatureSource = [
+      norm(merchantAccount), norm(orderReference),
+      Number(amount).toFixed(2), norm(currency), norm(authCode),
+      norm(cardPan), norm(transactionStatus), norm(reason),
+      norm(reasonCode), Number(fee).toFixed(2), norm(paymentSystem), norm(time)
+    ];
+
+    const expectedSignature = crypto.createHmac('md5', secretKey).update(signatureSource.join(';')).digest('hex');
+    const isApproved = norm(transactionStatus) === 'approved';
+
+    if (!isApproved) return res.status(200).send('Ignored');
+
+    const temp = await TempOrder.findOne({ orderId: orderReference });
+    if (!temp) return res.status(404).send('Temp order not found');
+
+    const savedOrder = await Order.create({
+      ...temp.orderData,
+      isPaid: true,
+      paymentId: orderReference,
+      amountPaid: parseFloat(amount),
+    });
+
+    await TempOrder.deleteOne({ orderId: orderReference });
+    await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
+
+    try {
+      await sendClientConfirmation(savedOrder);
+      await sendAdminNotification(savedOrder);
+    } catch (e) {
+      console.warn('📧 Email send error:', e.message);
+    }
+
+    const responseTime = Math.floor(Date.now() / 1000);
+    const callbackResponse = [orderReference, 'accept', responseTime];
+    const responseSignature = crypto.createHmac('md5', secretKey).update(callbackResponse.join(';')).digest('hex');
+
+    res.json({
+      orderReference,
+      status: 'accept',
+      time: responseTime,
+      signature: responseSignature,
+    });
+  } catch (err) {
+    console.error('❌ WayForPay callback error:', err);
+    res.status(500).send('Callback error');
+  }
+});
+
+export default router;
+{/*}
+import express from 'express';
+import crypto from 'crypto';
+import TempOrder from '../../models/TempOrder.js';
+import CartItem from '../../models/CartItem.js';
+import Order from '../../models/Order.js';
+import { sendClientConfirmation, sendAdminNotification } from '../../utils/mailer.js';
+
+const router = express.Router();
+
+function generateSignature(secretKey, values) {
+  const dataString = values.join(';');
+  return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
+}
 // ✅ Обробка редиректу після оплати (GET або POST)
 const redirectToSuccess = (req, res) => {
   const orderId = req.query.order || req.body.order;
@@ -25,14 +201,7 @@ const redirectToSuccess = (req, res) => {
 
 router.get('/success', redirectToSuccess);
 router.post('/success', redirectToSuccess);
-{/*}
-// ✅ Редирект після успішної оплати
-router.get('/success', (req, res) => {
-  const orderId = req.query.order;
-  const redirectUrl = `https://www.latore.shop/payment-success?order=${orderId}`;
-  res.redirect(302, redirectUrl);
-});
-*/}
+
 
 
 router.post('/', async (req, res) => {
@@ -121,29 +290,7 @@ res.json({
     merchantSignature: signature,
   }
 });
-{/*}
-    const html = `
-      <form method="POST" action="https://secure.wayforpay.com/pay">
-        <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
-        <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
-        <input type="hidden" name="orderReference" value="${orderReference}" />
-        <input type="hidden" name="orderDate" value="${orderDate}" />
-        <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="UAH" />
 
-        ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
-        ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
-        ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-       <input type="hidden" name="returnUrl" value="https://shoopingsite-backend-1.onrender.com/api/payments/wayforpay/success?order=${orderReference}" />
-
-<input type="hidden" name="serviceUrl" value="${serverUrl}" />
-        <input type="hidden" name="merchantSignature" value="${signature}" />
-        <script>document.forms[0].submit();</script>
-      </form>
-    `;
-
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);*/}
   } catch (err) {
     console.error('❌ WayForPay помилка:', err);
     res.status(500).send('WayForPay error');
@@ -286,445 +433,6 @@ router.post('/callback', async (req, res) => {
     res.status(500).send('Callback error');
   }
 });
-
-export default router;
-{/*}
-
-  <input type="hidden" name="returnUrl" value="https://your-backend.com/api/payments/wayforpay/success?order=${orderReference}" />
-
-router.post('/callback', async (req, res) => {
-  try {
-    const secretKey = process.env.WAYFORPAY_SECRET;
-    let parsed = req.body;
-
-    console.log('📩 RAW CALLBACK BODY:', req.body);
-
-    // 🧩 Якщо тіло у вигляді одного JSON-ключа (ламана структура)
-    const firstKey = Object.keys(req.body)[0];
-    if (firstKey && firstKey.startsWith('{') && firstKey.endsWith('}')) {
-      try {
-        parsed = JSON.parse(firstKey);
-        console.log('✅ Розпарсене тіло:', parsed);
-      } catch (e) {
-        console.error('❌ JSON parsing error:', e);
-        return res.status(400).send('Malformed callback JSON');
-      }
-    }
-
-    // 🛠 Нормалізація локалізованих значень
-    const normalizeMap = {
-      'схвалено': 'Approved',
-      'затверджено': 'Approved',
-      'добре': 'Ok',
-      'ок': 'Ok',
-      'грн': 'UAH',
-      'uah': 'UAH',
-      'картка': 'card',
-      'debit': 'debit',
-      'дебет': 'debit',
-    };
-    const norm = (v) => {
-      if (typeof v === 'number') return Number(v).toFixed(2);
-      return normalizeMap[(v || '').toString().trim().toLowerCase()] || v;
-    };
-    
-    const {
-      merchantAccount,
-      orderReference,
-      amount,
-      currency,
-      authCode,
-      cardPan,
-      transactionStatus,
-      reason,
-      reasonCode,
-      fee,
-      paymentSystem,
-      processingDate,
-      merchantSignature,
-    } = parsed;
-
-    const time = processingDate || parsed.time;
-
-    const signatureSource = [
-      norm(merchantAccount),
-      norm(orderReference),
-      Number(amount).toFixed(2),
-      norm(currency),
-      norm(authCode),
-      norm(cardPan),
-      norm(transactionStatus),
-      norm(reason),
-      norm(reasonCode),
-      Number(fee).toFixed(2),
-      norm(paymentSystem),
-      norm(time),
-    ];
-
-    const expectedSignature = crypto
-      .createHmac('md5', secretKey)
-      .update(signatureSource.join(';'))
-      .digest('hex');
-
-    console.log('🔐 Signature source string:', signatureSource.join(';'));
-    console.log('✅ Очікуваний підпис:', expectedSignature);
-    console.log('📨 Отриманий підпис:', merchantSignature);
-
-    if (merchantSignature !== expectedSignature) {
-      console.warn('❌ Невірний підпис у зворотному дзвінку');
-      return res.status(403).send('Invalid signature');
-    }
-
-    // ✅ Якщо оплата пройшла
-    if (norm(transactionStatus) === 'Approved') {
-      const temp = await TempOrder.findOne({ orderId: orderReference });
-      if (!temp) return res.status(404).send('Temp order not found');
-
-      const savedOrder = await Order.create({
-        ...temp.orderData,
-        isPaid: true,
-        paymentId: orderReference,
-        amountPaid: parseFloat(amount),
-      });
-
-      await TempOrder.deleteOne({ orderId: orderReference });
-
-      await sendClientConfirmation(savedOrder);
-      const cartItems = await CartItem.find({ sessionId: savedOrder.sessionId });
-      await sendAdminNotification(savedOrder, cartItems);
-
-      if (savedOrder.sessionId) {
-        await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
-      }
-
-      const responseTime = Math.floor(Date.now() / 1000);
-      const callbackResponse = [
-        orderReference,
-        'accept',
-        responseTime,
-      ];
-      const responseSignature = crypto
-        .createHmac('md5', secretKey)
-        .update(callbackResponse.join(';'))
-        .digest('hex');
-
-      return res.json({
-        orderReference,
-        status: 'accept',
-        time: responseTime,
-        signature: responseSignature,
-      });
-    }
-
-    // 💤 Якщо статус не Approved — просто ігноруємо
-    res.status(200).send('Ignored');
-  } catch (err) {
-    console.error('❌ WayForPay callback error:', err);
-    res.status(500).send('Callback error');
-  }
-});
-import express from 'express';
-import crypto from 'crypto';
-import TempOrder from '../../models/TempOrder.js';
-import CartItem from '../../models/CartItem.js';
-
-const router = express.Router();
-
-function generateSignature(secretKey, values) {
-  const dataString = values.join(';');
-  console.log('📐 Стрічка підпису (фіксована):', dataString);
-  return crypto.createHmac('md5', secretKey).update(dataString).digest('hex');
-}
-
-router.post('/', async (req, res) => {
-  try {
-    const { amount, order, resultUrl, serverUrl } = req.body;
-
-    const merchantAccount = process.env.WAYFORPAY_MERCHANT;
-    const merchantDomainName = 'latore.shop';
-    const secretKey = process.env.WAYFORPAY_SECRET;
-    const orderReference = crypto.randomUUID();
-    const orderDate = Math.floor(Date.now() / 1000);
-    const currency = 'UAH';
-
-    if (!order.sessionId) {
-      return res.status(400).send('Missing sessionId');
-    }
-
-    const cartItems = await CartItem.find({ sessionId: order.sessionId });
-    if (!cartItems.length) {
-      return res.status(400).send('Cart is empty');
-    }
-
-    // 🧼 Очищення суми від пробілів, ₴, грн, коми
-    const cleanAmount = typeof amount === 'string'
-      ? amount.replace(/[^\d.,]/g, '').replace(/\s/g, '').replace(',', '.')
-      : amount;
-
-    const formattedAmount = Number(cleanAmount).toFixed(2);
-
-    // 🧹 Назви, ціни, кількості
-    const productNamesArray = cartItems.map(i =>
-      String(i.name || i.назва || '')
-        .replace(/(грн|₴|uah)/gi, '')
-        .replace(/[^\p{L}\p{N} _.,-]/gu, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-    );
-
-    const productCountsArray = cartItems.map(i => String(i.quantity));
-
-    const productPricesArray = cartItems.map(i =>
-      Number(
-        String(i.price || i.ціна || '')
-          .replace(/(грн|₴|uah)/gi, '')
-          .replace(/[^\d.]/g, '')
-      ).toFixed(2)
-    );
-
-    // 🔗 Для підпису — рядки через ;
-    const productNames = productNamesArray.join(';');
-    const productCounts = productCountsArray.join(';');
-    const productPrices = productPricesArray.join(';');
-
-    const signatureSource = [
-      merchantAccount,
-      merchantDomainName,
-      orderReference,
-      String(orderDate),
-      formattedAmount,
-      currency,
-      productNames,
-      productCounts,
-      productPrices
-    ];
-
-    // 🕵️‍♀️ Логи для діагностики
-    console.log('🔍 Елементи підпису DEBUG:');
-    signatureSource.forEach((val, i) => {
-      console.log(`${i + 1}.`, JSON.stringify(val));
-      if (/грн|uah|₴/i.test(val)) {
-        console.warn('❗️⚠️ УВАГА! У підпис просочився символ валюти:', val);
-      }
-    });
-
-    const signature = generateSignature(secretKey, signatureSource);
-    console.log('✅ Підпис HMAC MD5:', signature);
-
-    // 💾 Зберігаємо тимчасове замовлення
-    await TempOrder.create({ orderId: orderReference, orderData: order });
-
-    // 🧾 HTML форма WayForPay
-    const html = `
-      <form method="POST" action="https://secure.wayforpay.com/pay">
-        <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
-        <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
-        <input type="hidden" name="orderReference" value="${orderReference}" />
-        <input type="hidden" name="orderDate" value="${orderDate}" />
-        <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="${currency}" />
-        <input type="hidden" name="productName" value="${productNames}" />
-        <input type="hidden" name="productCount" value="${productCounts}" />
-        <input type="hidden" name="productPrice" value="${productPrices}" />
-        <input type="hidden" name="language" value="UA" />
-        <input type="hidden" name="returnUrl" value="${resultUrl}" />
-        <input type="hidden" name="serviceUrl" value="${serverUrl}" />
-        <input type="hidden" name="merchantSignature" value="${signature}" />
-        <script>document.forms[0].submit();</script>
-      </form>
-    `;
-
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-  } catch (err) {
-    console.error('❌ Внутрішня помилка WayForPay:', err);
-    res.status(500).send('WayForPay error');
-  }
-});
-
-export default router;
- import express from 'express';
-import crypto from 'crypto';
-import TempOrder from '../../models/TempOrder.js';
-import CartItem from '../../models/CartItem.js';
-
-const router = express.Router();
-
-function generateSignature(secretKey, values) {
-  return crypto.createHmac('md5', secretKey).update(values.join(';')).digest('hex');
-}
-
-router.post('/', async (req, res) => {
-  try {
-    const { amount, order, resultUrl, serverUrl } = req.body;
-    console.log('🧾 ORDER from frontend:', order);
-
-    const merchantAccount = process.env.WAYFORPAY_MERCHANT;
-    const merchantDomainName = 'latore.shop';
-    const secretKey = process.env.WAYFORPAY_SECRET;
-    const orderReference = crypto.randomUUID();
-    const orderDate = Math.floor(Date.now() / 1000);
-    const currency = 'UAH'; // ВАЖЛИВО: тільки UAH
-    if (currency !== 'UAH') {
-        console.error('❌ currency не валідна:', currency);
-      }
-      
-    if (!order.sessionId) return res.status(400).send('Missing sessionId');
-    const cartItems = await CartItem.find({ sessionId: order.sessionId }).populate('productId');
-
-    if (!cartItems.length) return res.status(400).send('Cart is empty');
-    console.log('🧾 CART ITEMS:', cartItems.map(item => item.name || item.productName || item));
-
-    // 🔹 Очищення та форматування
-    const cleanAmount = typeof amount === 'string'
-  ? amount.replace(/[^\d.]/g, '') // прибирає все крім цифр і крапки
-  : amount;
-
-const formattedAmount = Number(cleanAmount).toFixed(2);
-
-    const productNames = cartItems.map(i =>
-        String(i.name)
-          .replace(/грн/gi, '')
-          .replace(/'/g, "’")   // ← заміна одинарних лапок
-          .replace(/"/g, "")  
-          .replace(/['"]/g, '')  // ← прибрати подвійні лапки, якщо є
-          .trim()
-      );
-     
-    const productCounts = cartItems.map(i =>
-      String(i.quantity)
-    );
-    const productPrices = cartItems.map(i =>
-      Number(i.price).toFixed(2)
-    );
-
-    // 🔐 Формування підпису
-    const signatureSource = [
-      merchantAccount,
-      merchantDomainName,
-      orderReference,
-      orderDate.toString(),
-      formattedAmount,
-      currency,
-      ...productNames,
-      ...productCounts,
-      ...productPrices
-    ].map(v => String(v).trim());
-
-    console.log('📐 Стрічка підпису:', signatureSource.join(';'));
-    const signature = generateSignature(secretKey, signatureSource);
-    console.log('✅ Підпис:', signature);
-
-    // ⏳ Зберегти тимчасове замовлення
-    await TempOrder.create({ orderId: orderReference, orderData: order });
-
-    // 🧾 Генерація HTML-форми
-    const html = `
-      <form method="POST" action="https://secure.wayforpay.com/pay">
-        <input type="hidden" name="merchantAccount" value="${merchantAccount}" />
-        <input type="hidden" name="merchantDomainName" value="${merchantDomainName}" />
-        <input type="hidden" name="orderReference" value="${orderReference}" />
-        <input type="hidden" name="orderDate" value="${orderDate}" />
-        <input type="hidden" name="amount" value="${formattedAmount}" />
-        <input type="hidden" name="currency" value="${currency}" />
-        ${productNames.map(p => `<input type="hidden" name="productName" value="${p}" />`).join('')}
-        ${productCounts.map(c => `<input type="hidden" name="productCount" value="${c}" />`).join('')}
-        ${productPrices.map(p => `<input type="hidden" name="productPrice" value="${p}" />`).join('')}
-        <input type="hidden" name="language" value="UA" />
-        <input type="hidden" name="returnUrl" value="${resultUrl}" />
-        <input type="hidden" name="serviceUrl" value="${serverUrl}" />
-        <input type="hidden" name="merchantSignature" value="${signature}" />
-        <script>document.forms[0].submit();</script>
-      </form>
-    `;
-
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-  } catch (err) {
-    console.error('❌ WayForPay помилка:', err);
-    res.status(500).send('WayForPay error');
-  }
-});
-
-
-router.post('/callback', async (req, res) => {
-    try {
-      const secretKey = process.env.WAYFORPAY_SECRET;
-      const {
-        merchantAccount,
-        orderReference,
-        amount,
-        currency,
-        authCode,
-        cardPan,
-        transactionStatus,
-        reason,
-        reasonCode,
-        fee,
-        paymentSystem,
-        time,
-        merchantSignature,
-      } = req.body;
-  
-      // ⚠️ Створюємо правильну сигнатуру (всі значення мають бути в тому ж порядку, що й на сайті WayForPay)
-      const signatureSource = [
-        merchantAccount,
-        orderReference,
-        amount,
-        currency,
-        authCode,
-        cardPan,
-        transactionStatus,
-        reason,
-        reasonCode,
-        fee,
-        paymentSystem,
-        time,
-      ];
-  
-      const expectedSignature = crypto
-        .createHmac('md5', secretKey)
-        .update(signatureSource.join(';'))
-        .digest('hex');
-  
-      // ✅ Перевірка підпису
-      if (merchantSignature !== expectedSignature) {
-        console.warn('❌ Invalid signature in callback');
-        return res.status(403).send('Invalid signature');
-      }
-  
-      // ✅ Якщо платіж успішний — зберігаємо замовлення
-      if (transactionStatus === 'Approved') {
-        const temp = await TempOrder.findOne({ orderId: orderReference });
-        if (!temp) return res.status(404).send('Temp order not found');
-  
-        const savedOrder = await Order.create({
-          ...temp.orderData,
-          isPaid: true,
-          paymentId: orderReference,
-        });
-  
-        await TempOrder.deleteOne({ orderId: orderReference });
-  
-        // ⏩ Надіслати пошту
-        await sendClientConfirmation(savedOrder);
-        await sendAdminNotification(savedOrder);
-  
-        // ⛔️ Очистити корзину
-        if (savedOrder.sessionId) {
-          await CartItem.deleteMany({ sessionId: savedOrder.sessionId });
-        }
-  
-        return res.status(200).send('OK');
-      }
-  
-      // Якщо не Approved — просто ігноруємо
-      res.status(200).send('Ignored');
-    } catch (err) {
-      console.error('❌ WayForPay callback error:', err);
-      res.status(500).send('Callback error');
-    }
-  });
 
 export default router;
 */}
