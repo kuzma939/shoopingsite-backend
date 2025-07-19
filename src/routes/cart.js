@@ -22,9 +22,10 @@ router.get('/', async (req, res) => {
         quantity: item.quantity,
         color: item.color,
         size: item.size,
-        price: item.price, // тепер прямо з CartItem
+        price: item.price, 
+        discountPrice: item.discountPrice,
         image: product?.image,
-        name: item.name,   // тепер прямо з CartItem
+        name: item.name,  
       };
     });
 
@@ -37,7 +38,7 @@ router.get('/', async (req, res) => {
 
 // === POST: Додати товар ===
 router.post('/', async (req, res) => {
-  let { sessionId, productId, color, size, quantity = 1 } = req.body;
+  let { sessionId, productId, color, size, quantity = 1, discountPrice  } = req.body;
 
   try {
     quantity = parseInt(quantity) || 1;
@@ -70,6 +71,7 @@ router.post('/', async (req, res) => {
         productId,
         name,
         price,
+         discountPrice,
         color,
         size,
         quantity,
