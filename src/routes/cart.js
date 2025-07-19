@@ -63,20 +63,23 @@ router.post('/', async (req, res) => {
     const existing = await CartItem.findOne({ sessionId, productId, color, size });
 
     if (existing) {
-      existing.quantity += quantity;
-      await existing.save();
-    } else {
-      await CartItem.create({
-        sessionId,
-        productId,
-        name,
-        price,
-         discountPrice,
-        color,
-        size,
-        quantity,
-      });
-    }
+  existing.quantity += quantity;
+  if (discountPrice !== undefined) {
+    existing.discountPrice = discountPrice; // 🔥 ОНОВЛЮЄМО
+  }
+  await existing.save();
+} else {
+  await CartItem.create({
+    sessionId,
+    productId,
+    name,
+    price,
+    discountPrice,
+    color,
+    size,
+    quantity,
+  });
+}
 
     res.json({ message: 'Товар додано до корзини' });
 
