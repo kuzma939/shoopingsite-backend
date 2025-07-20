@@ -21,6 +21,7 @@ router.post('/', async (req, res) => {
       const product = {
         id: rawProduct.id,
         price: rawProduct.price,
+         discountPrice: rawProduct.discountPrice ?? null, 
         isTop: rawProduct.isTop ?? false,
         isSpecialOffer: rawProduct.isSpecialOffer ?? false,
         sku: rawProduct.sku,
