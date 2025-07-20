@@ -58,14 +58,16 @@ router.post('/', async (req, res) => {
       product.name ||
       product.sku;
 
-    const price = product.price;
+   
+const price = discountPrice ?? product.price;
 
     const existing = await CartItem.findOne({ sessionId, productId, color, size });
 
     if (existing) {
   existing.quantity += quantity;
-  if (discountPrice !== undefined) {
-    existing.discountPrice = discountPrice; // 🔥 ОНОВЛЮЄМО
+   if (discountPrice !== undefined) {
+    existing.discountPrice = discountPrice;
+    existing.price = price; // 🔥 оновлюємо ціну в корзині!
   }
   await existing.save();
 } else {
