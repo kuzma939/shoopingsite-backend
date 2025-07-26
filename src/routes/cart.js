@@ -13,21 +13,27 @@ router.get('/', async (req, res) => {
     const cartItems = await CartItem.find({ sessionId });
     const productIds = cartItems.map(item => item.productId);
     const products = await Product.find({ id: { $in: productIds } });
+const formatted = cartItems.map(item => {
+  const product = products.find(p => p.id === item.productId);
 
-    const formatted = cartItems.map(item => {
-      const product = products.find(p => p.id === item.productId);
-      return {
-        id: item._id,
-        productId: item.productId,
-        quantity: item.quantity,
-        color: item.color,
-        size: item.size,
-        price: item.price, 
-        discountPrice: item.discountPrice,
-        image: product?.image,
-        name: item.name,  
-      };
-    });
+  // визначаємо знижку з продукту, якщо її нема в cartItem
+  const discountFromProduct = product?.discountPrice;
+  const hasDiscount = typeof discountFromProduct === 'number' && discountFromProduct < item.price;
+
+  return {
+    id: item._id,
+    productId: item.productId,
+    quantity: item.quantity,
+    color: item.color,
+    size: item.size,
+    price: item.price,
+    discountPrice: item.discountPrice ?? (hasDiscount ? discountFromProduct : null),
+    image: product?.image,
+    name: item.name,
+    category: product?.category,
+  };
+});
+
 
     res.json({ cart: formatted });
   } catch (error) {
