@@ -19,9 +19,14 @@ const redirectToSuccess = (req, res) => {
   res.redirect(302, `https://www.latore.shop/payment-success?order=${orderId}`);
 };
 
-router.get('/success', redirectToSuccess);
-router.post('/success', redirectToSuccess);
-
+//router.get('/success', redirectToSuccess);
+//router.post('/success', redirectToSuccess);
+router.all('/success', (req, res) => {
+  console.log('WFP success hit:', req.method, req.url);
+  const orderId = req.query.order || req.body?.order || req.body?.orderReference;
+  if (!orderId) return res.redirect(302, 'https://www.latore.shop');
+  return res.redirect(302, `https://www.latore.shop/payment-success?order=${orderId}`);
+});
 // ✅ Ініціалізація платежу
 router.post('/', async (req, res) => {
   try {
