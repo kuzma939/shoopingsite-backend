@@ -100,7 +100,7 @@ router.post('/', async (req, res) => {
         productCount: productCounts,
         productPrice: productPrices,
         serviceUrl: serverUrl,
-        returnUrl: `https://www.latore.shop/api/payments/wayforpay/success?order=${orderReference}`,
+        returnUrl: `https://www.latore.shop/payment-success?order=${orderReference}`,
 
         merchantSignature: signature,
       }
