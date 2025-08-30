@@ -34,7 +34,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // ✅ CORS
 app.use(cors({
-  origin: ['http://localhost:3000','http://localhost:3001','http://localhost:3002', 'https://shoopingsite-my9e.vercel.app', 'https://www.latore.shop'],
+  origin: ['http://localhost:3000','http://localhost:3001','http://localhost:3002', 'https://shoopingsite-my9e.vercel.app', 'https://www.latore.store'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
   credentials: true,
 }));

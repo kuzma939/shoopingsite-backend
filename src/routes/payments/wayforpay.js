@@ -15,7 +15,7 @@ function generateSignature(secretKey, values) {
 // ✅ Обробка редиректу після оплати
 const redirectToSuccess = (req, res) => {
   const orderId = req.query.order || req.body.order;
-  if (!orderId) return res.redirect(302, 'https://www.latore.shop');
+  if (!orderId) return res.redirect(302, 'https://www.latore.store');
   res.redirect(302, `https://www.latore.shop/payment-success?order=${orderId}`);
 };
 
@@ -24,8 +24,8 @@ const redirectToSuccess = (req, res) => {
 router.all('/success', (req, res) => {
   console.log('WFP success hit:', req.method, req.url);
   const orderId = req.query.order || req.body?.order || req.body?.orderReference;
-  if (!orderId) return res.redirect(302, 'https://www.latore.shop');
-  return res.redirect(302, `https://www.latore.shop/payment-success?order=${orderId}`);
+  if (!orderId) return res.redirect(302, 'https://www.latore.store');
+  return res.redirect(302, `https://www.latore.store/payment-success?order=${orderId}`);
 });
 // ✅ Ініціалізація платежу
 router.post('/', async (req, res) => {
